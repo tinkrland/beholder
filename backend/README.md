@@ -15,7 +15,8 @@ app/
   schemas.py         the pydantic wire format
   gateway/           the only module that talks to any model
   brain/             extraction, lens building, scoring, claims, projection,
-                     honesty. pure functions, runner injected, no db, no http
+                     honesty, grounding (the nine w's coverage check). pure
+                     functions, runner injected, no db, no http
   ingest/            forge adapters (github first), the rest walk, excludes,
                      secret redaction
   api/routes.py      thin routes: validate, call the service
@@ -31,6 +32,9 @@ rules the code keeps:
 - a draft lens never scores; confirmation includes every inferred weight
 - unbound sentences fail the render; export is blocked on honesty failures
 - provenance comes from the chunk, never from the model
+- the nine w's (thewframework/) are the extraction map: grounding reports
+  grounded, partial, or silent per dimension, and silence is surfaced, never
+  smoothed over
 - secrets are redacted before any content reaches the gateway
 - the rest walk reports what it did not read
 

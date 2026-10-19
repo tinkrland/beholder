@@ -267,3 +267,66 @@ def test_every_extraction_fact_has_provenance():
     chunks = [{"path": "requirements.txt", "text": "fastapi\nhttpx", "lines_start": 1, "lines_end": 2}]
     for f in extraction.static_pass(chunks):
         assert f.provenance and f.provenance[0].ref
+
+
+# ---------- grounding (the nine w's coverage check) ----------
+
+from app.brain import grounding  # noqa: E402
+
+
+def _dim(report, name):
+    return next(d for d in report["dimensions"] if d["dimension"] == name)
+
+
+def test_grounding_covers_all_nine_in_order():
+    report = grounding.ground([])
+    assert [d["dimension"] for d in report["dimensions"]] == grounding.DIMENSION_ORDER
+    assert report["coverage"] == 0.0 and len(report["silent"]) == 9
+
+
+def test_grounding_silent_dimensions_say_what_would_close():
+    report = grounding.ground([])
+    for d in report["dimensions"]:
+        assert d["status"] == "silent" and d["would_close"]
+
+
+def test_grounding_partial_below_the_bar():
+    f = fact("f1", conf=0.6, status="inferred")  # capability, under 0.7
+    report = grounding.ground([f])
+    assert _dim(report, "what")["status"] == "partial"
+    assert _dim(report, "who")["status"] == "silent"
+
+
+def test_grounding_reached_by_confirmation():
+    f = fact("f1", conf=0.4, status="confirmed")
+    report = grounding.ground([f])
+    assert _dim(report, "what")["status"] == "grounded"
+
+
+def test_grounding_reached_by_confidence():
+    f = fact("f1", conf=0.8, status="inferred")
+    report = grounding.ground([f])
+    assert _dim(report, "what")["status"] == "grounded"
+    assert report["grounded"] == 1 and "what" not in report["silent"]
+
+
+def test_grounding_user_stated_problem_counts_for_why():
+    f = fact("f1", statement="jewelers cannot batch-edit photos cheaply", kind="constraint", prov_type="user")
+    report = grounding.ground([f])
+    assert _dim(report, "why")["status"] != "silent"
+
+
+def test_grounding_plan_facts_ground_the_way_dimension():
+    low = fact("f1", statement="the roadmap stages an api after the demo", kind="plan", conf=0.5)
+    report = grounding.ground([low])
+    assert _dim(report, "way")["status"] == "partial"
+    assert _dim(report, "way")["kinds"] == ["plan"]
+    high = fact("f2", statement="the roadmap stages an api after the demo", kind="plan", conf=0.8)
+    report = grounding.ground([high])
+    assert _dim(report, "way")["status"] == "grounded"
+
+
+def test_grounding_rejected_facts_do_not_ground():
+    f = fact("f1", conf=0.9, status="rejected")
+    report = grounding.ground([f])
+    assert _dim(report, "what")["status"] == "silent"

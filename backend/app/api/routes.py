@@ -14,6 +14,7 @@ from ..gateway.runner import SimpleRunner
 from ..models import ClaimCheck, Gap, Job, Lens, Score, Target
 from ..service import (
     add_text_source,
+    grounding_for_project,
     check_claims_rows,
     confirm_lens_row,
     create_project,
@@ -111,6 +112,18 @@ async def post_repo_source(
     await require_project_access(user, project_id, session)
     job = await enqueue_job(session, "sync_repo", project_id, {"repo_url": body.repo_url, "ref": body.ref, "token": body.token})
     return {"job_id": job.id, "status": job.status}
+
+
+@router.get("/projects/{project_id}/grounding")
+async def get_grounding(
+    project_id: str,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """the nine w's coverage check: grounded, partial, or silent per dimension,
+    with what would close each silent one."""
+    await require_project_access(user, project_id, session)
+    return await grounding_for_project(session, project_id)
 
 
 @router.post("/projects/{project_id}/extract")

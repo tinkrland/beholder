@@ -155,6 +155,12 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
     return stored
 
 
+async def grounding_for_project(session: AsyncSession, project_id: str) -> dict:
+    """the nine w's coverage check over the project's fact set."""
+    facts = await load_facts_for_model(session, project_id, None)
+    return brain.grounding.ground(facts)
+
+
 async def list_facts(session: AsyncSession, project_id: str) -> list[Fact]:
     return (await session.execute(select(Fact).where(Fact.project_id == project_id).order_by(Fact.kind))).scalars().all()
 

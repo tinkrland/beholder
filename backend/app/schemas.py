@@ -17,6 +17,7 @@ FactKind = Literal[
     "alternative",
     "constraint",
     "metric",
+    "plan",
 ]
 
 FactStatus = Literal["inferred", "confirmed", "rejected"]

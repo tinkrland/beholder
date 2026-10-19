@@ -64,6 +64,19 @@ async def test_mvp_flow(client):
     fact_ids = [f["id"] for f in facts]
     assert all(f["provenance"] for f in facts)  # no fact without provenance
 
+    # grounding: the nine w's coverage check over the fact set
+    r = await client.get(f"/api/projects/{project_id}/grounding")
+    assert r.status_code == 200, r.text
+    grounding = r.json()
+    assert len(grounding["dimensions"]) == 9
+    # the demo fact is a capability at 0.6 confidence: partial, not grounded
+    what = next(d for d in grounding["dimensions"] if d["dimension"] == "what")
+    assert what["status"] == "partial" and what["fact_count"] >= 1
+    # dimensions nobody spoke to are named, with what would close them
+    assert "who" in grounding["silent"]
+    silent = next(d for d in grounding["dimensions"] if d["dimension"] == "who")
+    assert silent["would_close"]
+
     # rubric parse -> draft lens
     r = await client.post("/api/lenses/parse-rubric", json={"text": "criteria: technical depth 30%, demo 30%, originality 20%, impact 20%", "source_ref": "sheet.pdf"})
     assert r.status_code == 200, r.text

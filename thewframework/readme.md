@@ -52,3 +52,13 @@ ads, posts, or campaigns.
 read the dimension pages in order, or start from whichever one your sources
 actually speak to. a source that says nothing about a dimension is itself
 information: beholder records the silence in the gap list.
+
+## grounding coverage in the backend
+
+the framework is not only documentation. the backend implements the coverage
+check: `get /projects/{id}/grounding` reports each dimension as grounded
+(a confirmed fact, or one at or above the confidence bar), partial (facts
+exist, none reach the bar), or silent (nothing speaks to it), with what would
+close each silent dimension. the `plan` fact kind exists for the way
+dimension: stated roadmap and future statements are stored as plans, and a
+plan is never a capability.
