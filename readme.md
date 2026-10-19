@@ -17,7 +17,7 @@ later: a recommendation of **which targets to pitch at**.
 
 ## status
 
-pre-build. this folder holds the full spec set.
+spec set complete. the v1 backend lives in [backend/](backend/README.md): fastapi, any postgres, one model gateway, the brain as pure functions, rest-walk repo ingest, migrations from day one, 42 tests green. the mvp flow runs: project, sources, extraction, lens parse with mandatory review, scoring with gaps, pitch views with sentence binding, overclaim checks, and the honesty guard blocking export.
 
 ## read in this order
 

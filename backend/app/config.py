@@ -1,0 +1,33 @@
+"""beholder settings. everything comes from the environment, never from the repo."""
+
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    # any postgres url. sqlite works for dev and tests.
+    database_url: str = "sqlite+aiosqlite:///./beholder.db"
+
+    # the api verifies jwts issued by supabase auth (standard jwks). a self-host
+    # swaps this url and nothing else; supabase is hosted postgres with standard
+    # protocols, so nothing here is supabase-only.
+    supabase_url: str | None = None
+    supabase_audience: str = "authenticated"
+
+    # the model gateway. glm through an openai-compatible endpoint.
+    glm_api_key: str | None = None
+    glm_base_url: str = "https://api.z.ai/api/paas/v4"
+    glm_model: str = "glm-4.6"
+
+    # provider for the gateway: "glm" or "mock" (tests, local runs without keys)
+    gateway_provider: str = "glm"
+
+    # dev only: skip jwt verification. never enable with a public bind.
+    dev_auth: bool = False
+
+    # run the job worker inside the api process. one queue, one worker type.
+    inline_worker: bool = True
+
+    model_config = {"env_prefix": "BEHOLDER_", "env_file": ".env"}
+
+
+settings = Settings()
