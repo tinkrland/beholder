@@ -17,7 +17,7 @@ later: a recommendation of **which targets to pitch at**.
 
 ## status
 
-spec set complete. the v1 backend lives in [backend/](backend/README.md): fastapi, any postgres, one model gateway, the brain as pure functions, rest-walk repo ingest, migrations from day one, 42 tests green. the mvp flow runs: project, sources, extraction, lens parse with mandatory review, scoring with gaps, pitch views with sentence binding, overclaim checks, and the honesty guard blocking export.
+spec set complete. the nine w's framework, beholder's extraction map, lives in [thewframework/](thewframework/readme.md). the v1 backend lives in [backend/](backend/README.md): fastapi, any postgres, one model gateway, the brain as pure functions, rest-walk repo ingest, migrations from day one, 42 tests green. the mvp flow runs: project, sources, extraction, lens parse with mandatory review, scoring with gaps, pitch views with sentence binding, overclaim checks, and the honesty guard blocking export.
 
 ## read in this order
 
@@ -30,6 +30,7 @@ spec set complete. the v1 backend lives in [backend/](backend/README.md): fastap
 | [how-it-works.md](docs/how-it-works.md) | the end-to-end flow |
 | [lenses.md](spec/lenses.md) | the lens format, the core asset, with an example |
 | [example-studiogram.md](docs/example-studiogram.md) | a worked run on a real project |
+| [thewframework/](thewframework/readme.md) | the nine w's: what beholder extracts from what you give it, per dimension |
 | [build-spec.md](spec/build-spec.md) | the technical spec for builders |
 | [backend-stack.md](spec/backend-stack.md) | the backend stack: where each piece runs, and with which tools |
 | [roadmap.md](spec/roadmap.md) | staged plan |
