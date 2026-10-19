@@ -174,7 +174,7 @@ async def post_docsite_source(
     """a bounded same-root crawl. runs as a job: crawls take as long as they
     take, and the job row is how progress is visible."""
     await require_project_access(user, project_id, session)
-    job = await enqueue_job(session, "crawl_docsite", project_id, {"root_url": body.root_url, "budget": body.budget}, user_id=user["id"])
+    job = await enqueue_job(session, "crawl_docsite", project_id, {"root_url": body.root_url, "budget": body.budget}, user_id=user.id)
     return {"job_id": job.id, "status": job.status}
 
 
@@ -191,7 +191,7 @@ async def post_repo_source(
         "sync_repo",
         project_id,
         {"repo_url": body.repo_url, "ref": body.ref, "token": body.token, "forge": body.forge},
-        user_id=user["id"],
+        user_id=user.id,
     )
     return {"job_id": job.id, "status": job.status}
 
@@ -205,7 +205,7 @@ async def put_forge_account(
     """connect a forge account for private repos. one per forge, newest token
     wins. the token is stored server-side and never returned whole."""
     try:
-        await upsert_forge_account(session, user["id"], body.forge, body.token)
+        await upsert_forge_account(session, user.id, body.forge, body.token)
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
     return {"forge": body.forge, "connected": True}
@@ -216,7 +216,7 @@ async def get_forge_accounts(
     user=Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    rows = await list_forge_accounts(session, user["id"])
+    rows = await list_forge_accounts(session, user.id)
     return [
         {"forge": r.forge, "token_hint": r.token[-4:] if r.token else "", "created_at": r.created_at}
         for r in rows
@@ -230,7 +230,7 @@ async def revoke_forge_account(
     session: AsyncSession = Depends(get_session),
 ):
     """revocation is immediate: the row is deleted, not flagged."""
-    gone = await delete_forge_account(session, user["id"], forge)
+    gone = await delete_forge_account(session, user.id, forge)
     if not gone:
         raise HTTPException(404, f"no {forge} account connected")
     return {"forge": forge, "connected": False}
