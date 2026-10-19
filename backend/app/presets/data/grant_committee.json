@@ -1,0 +1,87 @@
+{
+  "key": "grant_committee",
+  "name": "grant committee reviewer",
+  "description": "how a grant reviewer sees a project: the problem is real, the plan is feasible, the money is accounted for.",
+  "staleness_days": 120,
+  "sources": [
+    "https://emergentventures.com/"
+  ],
+  "drift_keywords": [
+    "project",
+    "proposal",
+    "funding"
+  ],
+  "criteria": [
+    {
+      "name": "a real and stated problem",
+      "weight": 0.25,
+      "description": "the problem is concrete and evidenced, not vibes",
+      "strong_answer": "a problem statement with cited evidence",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "feasible plan",
+      "weight": 0.25,
+      "description": "the plan matches demonstrated capability",
+      "strong_answer": "existing work that shows the team can do it",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "qualified team",
+      "weight": 0.2,
+      "description": "the applicant can plausibly execute",
+      "strong_answer": "evidence of prior or current related work",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "clear use of funds",
+      "weight": 0.15,
+      "description": "what the money buys is specific",
+      "strong_answer": "a budget or a concrete milestone",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "honest framing",
+      "weight": 0.15,
+      "description": "claims match evidence, uncertainties stated",
+      "strong_answer": "no overclaim, gaps stated plainly",
+      "subjective": false,
+      "inferred_weight": false
+    }
+  ],
+  "required_questions": [
+    "what problem does this solve",
+    "why this team",
+    "what will the money accomplish",
+    "how will success be measured"
+  ],
+  "red_flags": [
+    "a plan with no evidence of capability",
+    "vague budget",
+    "claims beyond the evidence"
+  ],
+  "objection_seeds": [
+    "has anyone asked for this",
+    "what happens when the grant ends",
+    "why is a grant needed instead of revenue"
+  ],
+  "trusted_evidence": [
+    "a working prototype or pilot",
+    "prior related work with links",
+    "letters or evidence of demand"
+  ],
+  "vocabulary": [
+    "feasible",
+    "evidence",
+    "milestone",
+    "deliverable"
+  ],
+  "output_formats": [
+    "proposal sections",
+    "budget rationale"
+  ]
+}

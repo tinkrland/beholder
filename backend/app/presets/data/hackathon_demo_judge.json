@@ -1,0 +1,86 @@
+{
+  "key": "hackathon_demo_judge",
+  "name": "hackathon demo judge",
+  "description": "how a hackathon judge sees a project in a five minute demo: what works, what it is, and how hard it was.",
+  "staleness_days": 90,
+  "sources": [
+    "https://ethglobal.substack.com/"
+  ],
+  "drift_keywords": [
+    "demo",
+    "judges",
+    "technical"
+  ],
+  "criteria": [
+    {
+      "name": "it works live",
+      "weight": 0.3,
+      "description": "the demo runs, or there is an honest recorded fallback",
+      "strong_answer": "a live run or a recording of a real run",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "one clear idea",
+      "weight": 0.2,
+      "description": "what the project is can be said in one sentence",
+      "strong_answer": "a one-liner that fits the demo",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "technical depth",
+      "weight": 0.25,
+      "description": "the hard part is identified and was actually solved",
+      "strong_answer": "the mechanic, visible or explained with evidence",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "scope honesty",
+      "weight": 0.15,
+      "description": "the team is honest about what is stubbed or mocked",
+      "strong_answer": "stated boundaries, no overclaim",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "relevance to the event",
+      "weight": 0.1,
+      "description": "the project fits the hackathon's theme and rules",
+      "strong_answer": "uses the event's platform or theme, within rules",
+      "subjective": false,
+      "inferred_weight": false
+    }
+  ],
+  "required_questions": [
+    "what does the demo show",
+    "what is real versus mocked",
+    "what was the hardest part"
+  ],
+  "red_flags": [
+    "a slide deck instead of a demo",
+    "mocked results presented as real",
+    "a project started before the event"
+  ],
+  "objection_seeds": [
+    "can you run it again live",
+    "how much was built here",
+    "what breaks if i poke it"
+  ],
+  "trusted_evidence": [
+    "repo evidence committed during the event",
+    "a live or recorded run",
+    "tests or a reproducible setup"
+  ],
+  "vocabulary": [
+    "demo",
+    "works",
+    "built during",
+    "hard part"
+  ],
+  "output_formats": [
+    "demo script",
+    "judge answers"
+  ]
+}

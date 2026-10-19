@@ -17,6 +17,13 @@ async def lifespan(app: FastAPI):
     # dev convenience: create tables on startup. production runs alembic.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # authored presets sync into the lenses table at startup: a data file
+    # change is a version bump, not a deploy step
+    from .service import ensure_presets
+
+    async with Session() as session:
+        await ensure_presets(session)
     try:
         yield
     finally:

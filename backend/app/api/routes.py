@@ -14,6 +14,8 @@ from ..gateway.runner import SimpleRunner
 from ..models import ClaimCheck, Gap, Job, Lens, Score, Target
 from ..service import (
     add_doc_source,
+    create_target,
+    list_presets,
     delete_forge_account,
     list_forge_accounts,
     upsert_forge_account,
@@ -194,6 +196,62 @@ async def post_repo_source(
         user_id=user.id,
     )
     return {"job_id": job.id, "status": job.status}
+
+
+class PresetTargetIn(BaseModel):
+    preset_key: str
+    label: str | None = None
+    deadline: date | None = None
+
+
+class PresetRefreshIn(BaseModel):
+    keys: list[str] | None = None
+
+
+@router.get("/presets")
+async def get_presets(
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """authored preset lenses with staleness state. stale presets are listed,
+    flagged, and excluded from recommendation; they are never hidden."""
+    return await list_presets(session)
+
+
+@router.post("/presets/refresh")
+async def post_refresh_presets(
+    body: PresetRefreshIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """the staleness refresh, as a job: sources are fetched, drift checked,
+    last_verified set only when sources still resolve and read the same."""
+    job = await enqueue_job(session, "refresh_presets", None, {"keys": body.keys}, user_id=user.id)
+    return {"job_id": job.id, "status": job.status}
+
+
+@router.post("/projects/{project_id}/targets/from-preset")
+async def post_target_from_preset(
+    project_id: str,
+    body: PresetTargetIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """a target from an authored preset. the preset lens is confirmed by
+    authorship, so it scores immediately: no review step, because there was
+    no parse."""
+    await require_project_access(user, project_id, session)
+    from ..presets import preset_by_key
+
+    preset = preset_by_key(body.preset_key)
+    if preset is None:
+        raise HTTPException(404, f"unknown preset: {body.preset_key}")
+    from ..service import ensure_presets
+
+    rows = await ensure_presets(session)
+    lens = next(rw for rw in rows if rw.name == body.preset_key)
+    target = await create_target(session, project_id, lens.id, body.label or preset["name"], body.deadline)
+    return {"target_id": target.id, "lens_id": lens.id, "lens_version": lens.version, "label": target.label}
 
 
 @router.put("/forge/accounts")

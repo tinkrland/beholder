@@ -1,0 +1,89 @@
+{
+  "key": "yc_application",
+  "name": "yc application reader",
+  "description": "how a yc application reader sees a project: what the team built, who uses it, how fast, and whether the market is big.",
+  "staleness_days": 180,
+  "sources": [
+    "https://www.ycombinator.com/apply"
+  ],
+  "drift_keywords": [
+    "team",
+    "market",
+    "users",
+    "prototype"
+  ],
+  "criteria": [
+    {
+      "name": "a specific user with a real pain",
+      "weight": 0.2,
+      "description": "the project names who has the problem and why it hurts",
+      "strong_answer": "a named user or segment and evidence they have this problem today",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "built and demonstrable",
+      "weight": 0.25,
+      "description": "something real exists, not a plan",
+      "strong_answer": "working code a reader can run or see",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "momentum per unit of time",
+      "weight": 0.2,
+      "description": "impressive progress for the age of the project",
+      "strong_answer": "dated evidence of fast progress",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "a market worth serving",
+      "weight": 0.2,
+      "description": "the market is big or a wedge into a big market",
+      "strong_answer": "a stated market with any credible size argument",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "users or a way to get them",
+      "weight": 0.15,
+      "description": "any real usage, or a credible first-users plan",
+      "strong_answer": "user counts, waitlists, or a specific first channel",
+      "subjective": false,
+      "inferred_weight": false
+    }
+  ],
+  "required_questions": [
+    "who is the first user",
+    "what do they do with it today",
+    "how big is the market",
+    "why now"
+  ],
+  "red_flags": [
+    "a product with no user named",
+    "a plan with nothing built",
+    "a market size with no source"
+  ],
+  "objection_seeds": [
+    "is anyone actually using this",
+    "why does this need to exist now",
+    "what stops an incumbent from doing this"
+  ],
+  "trusted_evidence": [
+    "repo evidence of a working build",
+    "dated changelog or release history",
+    "stated user numbers with a source"
+  ],
+  "vocabulary": [
+    "momentum",
+    "wedge",
+    "beachhead",
+    "users",
+    "shipped"
+  ],
+  "output_formats": [
+    "application answers",
+    "one-liner"
+  ]
+}

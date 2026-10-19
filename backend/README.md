@@ -15,8 +15,12 @@ app/
   schemas.py         the pydantic wire format
   gateway/           the only module that talks to any model
   brain/             extraction, lens building, scoring, claims, projection,
-                     honesty, grounding (the nine w's coverage check). pure
-                     functions, runner injected, no db, no http
+                     honesty, grounding (the nine w's coverage check), preset
+                     staleness and drift. pure functions, runner injected,
+                     no db, no http
+  presets/           authored preset lenses, one json file per target.
+                     authored means confirmed by authorship: no parse, no
+                     review step. adding a preset is a data file, not code
   ingest/            forge adapters (github, gitlab, bitbucket, gitea, one
                      file each, self-hosted urls overridable), the rest walk,
                      doc-site crawls (gitbook, quartz), doc inputs (md/txt/
@@ -78,6 +82,18 @@ python -m pytest -q
 the gateway is mocked everywhere: brain tests run against canned runners, the
 api flow test runs the whole mvp pipeline over http against temp sqlite,
 including the honesty guard blocking export until facts are confirmed.
+
+## preset lenses
+
+authored in `app/presets/data/`, one json file per target, synced into the
+lenses table at startup: a changed file is a version bump in place. presets
+carry `staleness_days` and start stale on arrival (`last_verified` is null
+until a refresh verifies them). the refresh fetches each preset's sources and
+runs a deliberately dumb drift check on authored keywords: `last_verified` is
+set only when the sources resolve and still read the same, otherwise the
+preset stays stale and a human re-reads it. the refresh never rewrites
+criteria. stale presets are flagged in `get /presets`, never hidden, and are
+excluded from recommendation.
 
 ## connected accounts
 

@@ -10,7 +10,7 @@ from sqlalchemy import select
 from .db import Session
 from .models import Job
 from .ingest.forge import forge_name_for_url
-from .service import resolve_forge_token, crawl_docsite_source, sync_repo_source
+from .service import refresh_presets, resolve_forge_token, crawl_docsite_source, sync_repo_source
 
 
 async def process_one(session) -> Job | None:
@@ -43,6 +43,9 @@ async def process_one(session) -> Job | None:
                 budget=row.payload.get("budget", 30),
             )
             row.progress = {"source_id": src.id}
+        elif row.kind == "refresh_presets":
+            report = await refresh_presets(session, row.payload.get("keys"))
+            row.progress = report
         else:
             raise ValueError(f"unknown job kind: {row.kind}")
         row.status = "done"

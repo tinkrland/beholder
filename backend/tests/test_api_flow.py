@@ -82,6 +82,25 @@ async def test_mvp_flow(client):
     r = await client.get("/api/forge/accounts")
     assert r.json() == []
 
+    # presets: authored lenses list with honest staleness, and score without
+    # a review step because there was no parse
+    r = await client.get("/api/presets")
+    assert r.status_code == 200, r.text
+    presets = r.json()
+    yc = next(p for p in presets if p["key"] == "yc_application")
+    assert yc["installed"] and yc["stale"] is True  # never verified: flagged, not hidden
+
+    r = await client.post(f"/api/projects/{project_id}/targets/from-preset", json={"preset_key": "yc_application"})
+    assert r.status_code == 200, r.text
+    preset_target = r.json()
+    assert preset_target["lens_version"] == 1
+
+    # the preset target scores like any target
+    r = await client.post(f"/api/targets/{preset_target['target_id']}/score")
+    assert r.status_code == 200, r.text
+    scored = r.json()
+    assert scored["weighted_total"] >= 0 and scored["per_criterion"]
+
     # grounding: the nine w's coverage check over the fact set
     r = await client.get(f"/api/projects/{project_id}/grounding")
     assert r.status_code == 200, r.text

@@ -12,6 +12,7 @@ from . import brain
 from .db import Json  # noqa: F401  (type registration)
 from .ingest import repo_walk as walk_mod
 from .ingest.forge import FORGES, _env_tokens, forge_for_url, forge_name_for_url
+from .presets import load_presets, preset_by_key
 from .ingest.docsite import crawl as crawl_docsite
 from .ingest.docs import parse_direct_text, parse_document
 from .ingest.firecrawl import FirecrawlClient
@@ -282,6 +283,115 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
     session.add(version)
     await session.commit()
     return stored
+
+
+async def ensure_presets(session: AsyncSession) -> list[Lens]:
+    """sync authored preset files into the lenses table. upsert keyed by name
+    with owner_id null and type preset: a changed file bumps the version and
+    replaces the content, targets keep pointing at the lens id."""
+    rows = []
+    for preset in load_presets():
+        row = (
+            await session.execute(select(Lens).where(Lens.type == "preset", Lens.name == preset["key"], Lens.owner_id.is_(None)))
+        ).scalar_one_or_none()
+        if row is None:
+            row = Lens(
+                owner_id=None,
+                type="preset",
+                name=preset["key"],
+                sources=[{"ref": u} for u in preset["sources"]],
+                criteria=preset["criteria"],
+                required_questions=preset["required_questions"],
+                red_flags=preset["red_flags"],
+                objection_seeds=preset["objection_seeds"],
+                trusted_evidence=preset["trusted_evidence"],
+                vocabulary=preset["vocabulary"],
+                output_formats=preset["output_formats"],
+                review_status="confirmed",  # authored by a human, not drafted by a model
+                visibility="shared",  # visible to every user: the library
+                last_verified=None,
+                staleness_days=preset["staleness_days"],
+            )
+            session.add(row)
+        else:
+            changed = (
+                row.criteria != preset["criteria"]
+                or row.objection_seeds != preset["objection_seeds"]
+                or row.red_flags != preset["red_flags"]
+                or row.trusted_evidence != preset["trusted_evidence"]
+            )
+            if changed:
+                row.version += 1
+                row.criteria = preset["criteria"]
+                row.objection_seeds = preset["objection_seeds"]
+                row.red_flags = preset["red_flags"]
+                row.trusted_evidence = preset["trusted_evidence"]
+                row.sources = [{"ref": u} for u in preset["sources"]]
+                row.staleness_days = preset["staleness_days"]
+        rows.append(row)
+    await session.commit()
+    return rows
+
+
+async def list_presets(session: AsyncSession) -> list[dict]:
+    """the presets listing with staleness, per brain.presets.preset_summary.
+    ensure first so the listing reflects the authored files."""
+    rows = await ensure_presets(session)
+    by_key = {r.name: r for r in rows}
+    return [brain.presets.preset_summary(p, {"id": by_key[p["key"]].id, "version": by_key[p["key"]].version, "last_verified": by_key[p["key"]].last_verified}) for p in load_presets()]
+
+
+async def refresh_presets(session: AsyncSession, keys: list[str] | None = None, client=None) -> dict:
+    """the staleness refresh: fetch each preset's sources, run the dumb drift
+    check, and set last_verified when the sources still resolve. a drifted
+    preset stays stale: a human re-reads it, the refresh never rewrites
+    criteria on its own."""
+    import httpx
+
+    rows = await ensure_presets(session)
+    by_key = {r.name: r for r in rows}
+    wanted = keys or [p["key"] for p in load_presets()]
+    results = []
+    own = client
+    if own is None:
+        own = httpx.AsyncClient(timeout=30, follow_redirects=True)
+    try:
+        for key in wanted:
+            preset = preset_by_key(key)
+            if preset is None:
+                results.append({"key": key, "error": "unknown preset"})
+                continue
+            row = by_key[key]
+            texts: list[str] = []
+            fetch_errors: list[str] = []
+            if not preset["sources"]:
+                row.last_verified = date.today()
+                results.append({"key": key, "verified": str(row.last_verified), "checkable": False, "note": "no sources: verified by re-read"})
+                continue
+            for url in preset["sources"]:
+                try:
+                    r = await own.get(url)
+                    r.raise_for_status()
+                    body = r.text if "html" not in r.headers.get("content-type", "") else None
+                    if body is None:
+                        from .ingest.html import html_to_text
+
+                        body = html_to_text(r.text)
+                    texts.append(body)
+                except httpx.HTTPError as e:
+                    fetch_errors.append(f"{url}: {e}")
+            drift = brain.presets.drift_check(preset, texts)
+            if fetch_errors or drift["drifted"]:
+                row.last_verified = row.last_verified  # stays stale: honest, not patched
+                results.append({"key": key, "error": "; ".join(fetch_errors) if fetch_errors else None, **drift, "verified": None})
+            else:
+                row.last_verified = date.today()
+                results.append({"key": key, **drift, "verified": str(row.last_verified)})
+    finally:
+        if client is None:
+            await own.aclose()
+    await session.commit()
+    return {"refreshed": results, "date": str(date.today())}
 
 
 async def grounding_for_project(session: AsyncSession, project_id: str) -> dict:

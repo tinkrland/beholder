@@ -1,0 +1,80 @@
+{
+  "key": "casting_partner",
+  "name": "casting partner evaluator",
+  "description": "how a platform or distribution partner evaluates a tool for their ecosystem: fit, integration cost, and support risk.",
+  "staleness_days": 90,
+  "sources": [],
+  "drift_keywords": [],
+  "criteria": [
+    {
+      "name": "ecosystem fit",
+      "weight": 0.25,
+      "description": "the project serves a user the partner cares about",
+      "strong_answer": "a named shared user segment",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "integration cost",
+      "weight": 0.25,
+      "description": "integration is small and documented",
+      "strong_answer": "a documented api or embed path",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "product maturity",
+      "weight": 0.2,
+      "description": "stable enough for the partner's users to touch",
+      "strong_answer": "tests, releases, and a changelog",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "support and maintenance risk",
+      "weight": 0.15,
+      "description": "evidence the project will be maintained",
+      "strong_answer": "dated activity and a stated roadmap",
+      "subjective": false,
+      "inferred_weight": false
+    },
+    {
+      "name": "no brand risk",
+      "weight": 0.15,
+      "description": "nothing in the project embarrasses the partner",
+      "strong_answer": "no overclaim, no unstable promises",
+      "subjective": false,
+      "inferred_weight": false
+    }
+  ],
+  "required_questions": [
+    "which users overlap",
+    "what does integration take",
+    "who supports it after launch"
+  ],
+  "red_flags": [
+    "no documentation",
+    "api without examples",
+    "claims about the partner's platform that are false"
+  ],
+  "objection_seeds": [
+    "what happens when it breaks for our users",
+    "who maintains this in six months",
+    "what do we tell users it does"
+  ],
+  "trusted_evidence": [
+    "a public working deployment",
+    "documented api with examples",
+    "release history"
+  ],
+  "vocabulary": [
+    "integration",
+    "partner",
+    "ecosystem",
+    "support"
+  ],
+  "output_formats": [
+    "partner one-pager",
+    "integration notes"
+  ]
+}
