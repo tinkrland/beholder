@@ -14,6 +14,7 @@ from ..gateway.runner import SimpleRunner
 from ..models import ClaimCheck, Gap, Job, Lens, Score, Target
 from ..service import (
     add_doc_source,
+    consistency_report,
     create_target,
     list_presets,
     delete_forge_account,
@@ -206,6 +207,19 @@ class PresetTargetIn(BaseModel):
 
 class PresetRefreshIn(BaseModel):
     keys: list[str] | None = None
+
+
+@router.post("/projects/{project_id}/consistency")
+async def post_consistency(
+    project_id: str,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """the cross-view check: what one view tells a reader is compared against
+    what the other views tell their readers. contradictions are reported with
+    both sides; the owner decides which front to correct. nothing is rewritten."""
+    await require_project_access(user, project_id, session)
+    return await consistency_report(session, project_id, runner(session))
 
 
 @router.get("/presets")

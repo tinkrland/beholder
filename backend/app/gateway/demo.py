@@ -39,6 +39,10 @@ def demo_responder(spec, user_content: str) -> dict:
     if spec.task_id == "check_claims":
         return {"verdict": "partial", "fact_ids": [], "suggested_rewrite": "demo rewrite: the project renders deterministic geometry"}
 
+    if spec.task_id == "check_consistency":
+        pairs = user_content.count("[b]")
+        return {"verdicts": [{"verdict": "consistent"} for _ in range(pairs)]}
+
     if spec.task_id == "generate_view":
         return {
             "sentences": [

@@ -16,8 +16,8 @@ app/
   gateway/           the only module that talks to any model
   brain/             extraction, lens building, scoring, claims, projection,
                      honesty, grounding (the nine w's coverage check), preset
-                     staleness and drift. pure functions, runner injected,
-                     no db, no http
+                     staleness and drift, cross-view consistency. pure
+                     functions, runner injected, no db, no http
   presets/           authored preset lenses, one json file per target.
                      authored means confirmed by authorship: no parse, no
                      review step. adding a preset is a data file, not code
@@ -82,6 +82,18 @@ python -m pytest -q
 the gateway is mocked everywhere: brain tests run against canned runners, the
 api flow test runs the whole mvp pipeline over http against temp sqlite,
 including the honesty guard blocking export until facts are confirmed.
+
+## consistency across views
+
+one project, many readers, one story. `post /projects/{id}/consistency` takes
+the latest view per target and compares reader-facing sentences across views:
+a sentence shown to one reader against sentences shown to another. framing
+differences are fine, claims that cannot both be true are not. pairing is
+deterministic and round-robin capped so no pair of views hogs the check;
+identical sentences across views count as echoes (agreement), never pairs; a
+sloppy model can only underreport (unknown verdicts become unrelated, never
+contradictions). contradictions come back with both sides and an explanation:
+the owner decides which front to correct. nothing is rewritten automatically.
 
 ## preset lenses
 

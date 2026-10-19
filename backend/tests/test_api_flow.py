@@ -153,6 +153,19 @@ async def test_mvp_flow(client):
     unbound = [s for s in view["sentences"] if not s["fact_ids"] and not s["criterion_ids"]]
     assert not unbound, "unbound sentences fail the render"
 
+    # the second front gets its view too, so two views exist to compare
+    r = await client.post(f"/api/targets/{preset_target['target_id']}/pitch")
+    assert r.status_code == 200, r.text
+
+    # the cross-view consistency check: one project, two views, one story
+    r = await client.post(f"/api/projects/{project_id}/consistency")
+    assert r.status_code == 200, r.text
+    report = r.json()
+    assert {v["target_id"] for v in report["checked_views"]} == {target_id, preset_target["target_id"]}
+    assert report["pairs_checked"] > 0
+    assert report["consistent"] is True  # the mock gateway votes consistent
+    assert report["contradictions"] == []
+
     # overclaim check on the user's own pitch language
     r = await client.post(f"/api/targets/{target_id}/check-claims", json={"pitch_text": "the engine never cracks and it scales to millions of users."})
     assert r.status_code == 200, r.text

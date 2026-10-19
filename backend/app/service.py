@@ -394,6 +394,33 @@ async def refresh_presets(session: AsyncSession, keys: list[str] | None = None, 
     return {"refreshed": results, "date": str(date.today())}
 
 
+async def consistency_report(session: AsyncSession, project_id: str, run) -> dict:
+    """one project, many readers, one story. the latest view per target is
+    compared view against view; contradictions are reported, never rewritten.
+    views are immutable, so the report is derived on demand, not stored."""
+    from .models import PitchView, Target
+
+    rows = (
+        await session.execute(
+            select(PitchView, Target)
+            .join(Target, PitchView.target_id == Target.id)
+            .where(Target.project_id == project_id)
+            .order_by(PitchView.created_at.desc())
+        )
+    ).all()
+    latest: dict[str, tuple] = {}
+    for view, target in rows:
+        if view.target_id not in latest:  # ordered desc: first seen is the newest
+            latest[view.target_id] = (view, target)
+    views = [
+        {"target_id": view.target_id, "label": target.label, "sentences": view.sentences}
+        for view, target in latest.values()
+    ]
+    report = await brain.consistency.check_consistency(views, run)
+    report["project_id"] = project_id
+    return report
+
+
 async def grounding_for_project(session: AsyncSession, project_id: str) -> dict:
     """the nine w's coverage check over the project's fact set."""
     facts = await load_facts_for_model(session, project_id, None)

@@ -1,7 +1,8 @@
 """the gateway. the only module that talks to any model.
 
 task ids are the contract: extract_facts, parse_rubric, draft_lens,
-score_criterion, check_claims, generate_view, bind_sentences. the gateway owns
+score_criterion, check_claims, generate_view, bind_sentences,
+check_consistency. the gateway owns
 prompt versions, response schemas, caching, retries, and cost metering. a
 fine-tuned model can slot in behind the same interface later with no caller
 changes: the brain passes task ids, never provider names.
@@ -103,6 +104,20 @@ TASKS: dict[str, TaskSpec] = {
             "metrics that are not in the facts."
         ),
         user_template="section: {section_key}\nlens framing:\n{lens}\n\nfacts:\n{facts}",
+    ),
+    "check_consistency": TaskSpec(
+        task_id="check_consistency",
+        prompt_version="1",
+        system=(
+            "you compare sentences that one project says to two different readers. "
+            "two sentences contradict when they cannot both be true of the same "
+            "project: different scopes for the same claim, different numbers for the "
+            "same thing, one view promising what another view says is not built. "
+            "framing differences are not contradictions: each reader sees a different "
+            "emphasis of one truth. verdicts are consistent, contradiction, or "
+            "unrelated. never invent a contradiction: when unsure, unrelated."
+        ),
+        user_template="views:\n{views}\n\npairs:\n{pairs}",
     ),
     "bind_sentences": TaskSpec(
         task_id="bind_sentences",

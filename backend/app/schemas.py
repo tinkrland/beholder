@@ -135,6 +135,33 @@ class ClaimCheckOut(BaseModel):
     suggested_rewrite: str | None = None
 
 
+class ConsistencySide(BaseModel):
+    target_id: str
+    label: str
+    sentence: str
+
+
+class ConsistencyContradiction(BaseModel):
+    a: ConsistencySide
+    b: ConsistencySide
+    explanation: str | None = None
+
+
+class ConsistencyCheckedView(BaseModel):
+    target_id: str
+    label: str
+    sentence_count: int
+
+
+class ConsistencyReportOut(BaseModel):
+    checked_views: list[ConsistencyCheckedView] = []
+    pairs_checked: int = 0
+    echoes: int = 0
+    contradictions: list[ConsistencyContradiction] = []
+    consistent: bool = True
+    note: str | None = None
+
+
 class Sentence(BaseModel):
     id: str
     text: str
