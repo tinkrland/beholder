@@ -81,6 +81,7 @@ class SourceChunk(Base):
     lines_start: Mapped[int | None] = mapped_column(default=0)
     lines_end: Mapped[int | None] = mapped_column(default=0)
     text: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(Text, default="file")  # file | doc | url
     redacted: Mapped[bool] = mapped_column(Boolean, default=False)
 
     __table_args__ = (Index("ix_chunks_source", "source_id", "idx"),)

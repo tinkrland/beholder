@@ -38,6 +38,7 @@ class FakeRun:
 @pytest.fixture
 async def db_session():
     from app.db import Base, engine
+    from app import models  # noqa: F401  (register every table before create_all)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # provider for the gateway: "glm" or "mock" (tests, local runs without keys)
     gateway_provider: str = "glm"
 
+    # firecrawl: pdf, docx, and url to markdown. optional: direct formats
+    # (md, txt, json) never need it, and the doc-site crawler is plain http.
+    firecrawl_api_key: str | None = None
+    firecrawl_base_url: str = "https://api.firecrawl.dev"
+
     # dev only: skip jwt verification. never enable with a public bind.
     dev_auth: bool = False
 

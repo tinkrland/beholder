@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from .db import Session
 from .models import Job
-from .service import sync_repo_source
+from .service import crawl_docsite_source, sync_repo_source
 
 
 async def process_one(session) -> Job | None:
@@ -29,6 +29,14 @@ async def process_one(session) -> Job | None:
                 row.payload["repo_url"],
                 row.payload.get("ref", "main"),
                 row.payload.get("token"),
+            )
+            row.progress = {"source_id": src.id}
+        elif row.kind == "crawl_docsite":
+            src = await crawl_docsite_source(
+                session,
+                row.project_id,
+                row.payload["root_url"],
+                budget=row.payload.get("budget", 30),
             )
             row.progress = {"source_id": src.id}
         else:

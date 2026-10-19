@@ -15,8 +15,8 @@ from ..schemas import FactIn, Provenance
 Runner = object  # any async callable (task_id, payload) -> dict
 
 
-def _prov(ref: str, lines: list[int] | None = None, sha: str | None = None) -> list[Provenance]:
-    return [Provenance(type="file", ref=ref, lines=lines, commit_sha=sha)]
+def _prov(ref: str, lines: list[int] | None = None, sha: str | None = None, kind: str = "file") -> list[Provenance]:
+    return [Provenance(type=kind, ref=ref, lines=lines, commit_sha=sha)]
 
 
 def static_pass(chunks: list[dict]) -> list[FactIn]:
@@ -27,6 +27,7 @@ def static_pass(chunks: list[dict]) -> list[FactIn]:
         path, text, sha = c["path"], c["text"], c.get("commit_sha")
         lines = [c.get("lines_start", 0), c.get("lines_end", 0)]
         name = path.rsplit("/", 1)[-1].lower()
+        kind = c.get("kind", "file")
 
         if name == "package.json":
             try:
@@ -34,24 +35,24 @@ def static_pass(chunks: list[dict]) -> list[FactIn]:
             except ValueError:
                 continue
             if pkg.get("name"):
-                facts.append(FactIn(project_id="", kind="capability", statement=f"the project's package name is {pkg['name']}", provenance=_prov(path, lines, sha), confidence=0.9))
+                facts.append(FactIn(project_id="", kind="capability", statement=f"the project's package name is {pkg['name']}", provenance=_prov(path, lines, sha, kind), confidence=0.9))
             deps = {**(pkg.get("dependencies") or {}), **(pkg.get("devDependencies") or {})}
             if deps:
                 top = ", ".join(sorted(deps)[:10])
-                facts.append(FactIn(project_id="", kind="platform", statement=f"built on node with {len(deps)} declared dependencies including {top}", provenance=_prov(path, lines, sha), confidence=0.85))
+                facts.append(FactIn(project_id="", kind="platform", statement=f"built on node with {len(deps)} declared dependencies including {top}", provenance=_prov(path, lines, sha, kind), confidence=0.85))
             for dep, ver in (pkg.get("dependencies") or {}).items():
-                facts.append(FactIn(project_id="", kind="constraint", statement=f"depends on {dep} ({ver})", value={"version": ver}, provenance=_prov(path, lines, sha), confidence=0.8))
+                facts.append(FactIn(project_id="", kind="constraint", statement=f"depends on {dep} ({ver})", value={"version": ver}, provenance=_prov(path, lines, sha, kind), confidence=0.8))
 
         elif name == "requirements.txt":
             reqs = [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")]
             if reqs:
-                facts.append(FactIn(project_id="", kind="platform", statement=f"python project with {len(reqs)} declared requirements including {', '.join(reqs[:10])}", provenance=_prov(path, lines, sha), confidence=0.85))
+                facts.append(FactIn(project_id="", kind="platform", statement=f"python project with {len(reqs)} declared requirements including {', '.join(reqs[:10])}", provenance=_prov(path, lines, sha, kind), confidence=0.85))
 
         elif name in {"dockerfile", "containerfile"}:
-            facts.append(FactIn(project_id="", kind="platform", statement="ships as a container", provenance=_prov(path, lines, sha), confidence=0.9))
+            facts.append(FactIn(project_id="", kind="platform", statement="ships as a container", provenance=_prov(path, lines, sha, kind), confidence=0.9))
 
         elif "/.github/workflows/" in path or "/.gitlab-ci" in path:
-            facts.append(FactIn(project_id="", kind="platform", statement="ci is configured in the repo", provenance=_prov(path, lines, sha), confidence=0.8))
+            facts.append(FactIn(project_id="", kind="platform", statement="ci is configured in the repo", provenance=_prov(path, lines, sha, kind), confidence=0.8))
 
     return facts
 
@@ -96,7 +97,7 @@ async def semantic_pass(chunks: list[dict], project_id: str, run: Runner, max_ch
                     kind=f.get("kind", "capability"),
                     statement=f.get("statement", "").strip(),
                     value=f.get("value"),
-                    provenance=_prov(c["path"], lines, c.get("commit_sha")),
+                    provenance=_prov(c["path"], lines, c.get("commit_sha"), c.get("kind", "file")),
                     confidence=min(0.9, 0.4 + 0.1 * len(lines or [])),
                     status="inferred",
                 )

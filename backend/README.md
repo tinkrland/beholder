@@ -17,8 +17,9 @@ app/
   brain/             extraction, lens building, scoring, claims, projection,
                      honesty, grounding (the nine w's coverage check). pure
                      functions, runner injected, no db, no http
-  ingest/            forge adapters (github first), the rest walk, excludes,
-                     secret redaction
+  ingest/            forge adapters (github first), the rest walk, doc-site
+                     crawls (gitbook, quartz), doc inputs (md/txt/json direct,
+                     pdf/docx via firecrawl), excludes, secret redaction
   api/routes.py      thin routes: validate, call the service
   jobs.py            one queue, one worker type, job rows as progress
 alembic/             migrations from day one
@@ -36,7 +37,10 @@ rules the code keeps:
   grounded, partial, or silent per dimension, and silence is surfaced, never
   smoothed over
 - secrets are redacted before any content reaches the gateway
-- the rest walk reports what it did not read
+- the rest walk reports what it did not read, and so does the doc-site crawl:
+  hard same-root boundaries, a page budget, and unread links recorded
+- provenance types match the source: file for repos, doc for documents, url
+  for pages; the plan fact kind stores stated futures as plans, never capabilities
 
 ## run locally
 

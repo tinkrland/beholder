@@ -55,6 +55,10 @@ async def test_mvp_flow(client):
     r = await client.post(f"/api/projects/{project_id}/sources/text", json={"text": "the project renders the exact product mesh deterministically", "label": "readme"})
     assert r.status_code == 200, r.text
 
+    # doc source: md parses locally, doc provenance
+    r = await client.post(f"/api/projects/{project_id}/sources/doc", json={"filename": "growth.md", "text": "the icp names made-to-order jewelers as the beachhead"})
+    assert r.status_code == 200, r.text
+
     # extraction: three passes, facts stored
     r = await client.post(f"/api/projects/{project_id}/extract")
     assert r.status_code == 200, r.text
@@ -63,6 +67,8 @@ async def test_mvp_flow(client):
     assert len(facts) >= 1
     fact_ids = [f["id"] for f in facts]
     assert all(f["provenance"] for f in facts)  # no fact without provenance
+    types = {f["provenance"][0]["type"] for f in facts}
+    assert "doc" in types  # doc sources carry doc provenance
 
     # grounding: the nine w's coverage check over the fact set
     r = await client.get(f"/api/projects/{project_id}/grounding")

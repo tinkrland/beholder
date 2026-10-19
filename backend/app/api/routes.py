@@ -13,7 +13,9 @@ from ..db import get_session
 from ..gateway.runner import SimpleRunner
 from ..models import ClaimCheck, Gap, Job, Lens, Score, Target
 from ..service import (
+    add_doc_source,
     add_text_source,
+    add_url_source,
     grounding_for_project,
     check_claims_rows,
     confirm_lens_row,
@@ -42,6 +44,21 @@ class ProjectIn(BaseModel):
 class TextSourceIn(BaseModel):
     text: str
     label: str = "pasted text"
+
+
+class DocSourceIn(BaseModel):
+    filename: str
+    text: str | None = None
+    content_b64: str | None = None
+
+
+class UrlSourceIn(BaseModel):
+    url: str
+
+
+class DocsiteIn(BaseModel):
+    root_url: str
+    budget: int = 30
 
 
 class RepoSourceIn(BaseModel):
@@ -100,6 +117,56 @@ async def post_text_source(
     await require_project_access(user, project_id, session)
     source = await add_text_source(session, project_id, body.text, body.label)
     return {"source_id": source.id, "kind": "text"}
+
+
+@router.post("/projects/{project_id}/sources/doc")
+async def post_doc_source(
+    project_id: str,
+    body: DocSourceIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """md, txt, json, and pasted text parse locally; pdf and docx go through
+    firecrawl when a key is configured."""
+    await require_project_access(user, project_id, session)
+    if body.text is None and body.content_b64 is None:
+        raise HTTPException(422, "send either text or content_b64")
+    try:
+        source = await add_doc_source(session, project_id, body.filename, text=body.text, content_b64=body.content_b64)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(503, str(e)) from e
+    return {"source_id": source.id, "kind": "doc"}
+
+
+@router.post("/projects/{project_id}/sources/url")
+async def post_url_source(
+    project_id: str,
+    body: UrlSourceIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    await require_project_access(user, project_id, session)
+    try:
+        source = await add_url_source(session, project_id, body.url)
+    except Exception as e:  # noqa: ble001 - url failures are user-facing
+        raise HTTPException(502, f"could not fetch {body.url}: {e}") from e
+    return {"source_id": source.id, "kind": "url"}
+
+
+@router.post("/projects/{project_id}/sources/docsite")
+async def post_docsite_source(
+    project_id: str,
+    body: DocsiteIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """a bounded same-root crawl. runs as a job: crawls take as long as they
+    take, and the job row is how progress is visible."""
+    await require_project_access(user, project_id, session)
+    job = await enqueue_job(session, "crawl_docsite", project_id, {"root_url": body.root_url, "budget": body.budget})
+    return {"job_id": job.id, "status": job.status}
 
 
 @router.post("/projects/{project_id}/sources/repo")

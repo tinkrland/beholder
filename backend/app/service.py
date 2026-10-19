@@ -11,6 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from . import brain
 from .db import Json  # noqa: F401  (type registration)
 from .ingest import repo_walk as walk_mod
+from .ingest.docsite import crawl as crawl_docsite
+from .ingest.docs import parse_direct_text, parse_document
+from .ingest.firecrawl import FirecrawlClient
+from .ingest.html import html_to_text
 from .ingest.secrets import redact
 from .models import (
     ClaimCheck,
@@ -69,8 +73,89 @@ async def add_text_source(session: AsyncSession, project_id: str, text: str, lab
     )
     session.add(source)
     await session.flush()
-    for i, c in enumerate(walk_mod.chunk_text(text, label)):
-        session.add(SourceChunk(source_id=source.id, idx=i, path=label, lines_start=c["lines_start"], lines_end=c["lines_end"], text=c["text"]))
+    for i, c in enumerate(parse_direct_text(text, label)):
+        session.add(SourceChunk(source_id=source.id, idx=i, path=label, lines_start=c["lines_start"], lines_end=c["lines_end"], text=c["text"], kind=c.get("kind", "doc")))
+    await session.commit()
+    return source
+
+
+async def add_doc_source(session: AsyncSession, project_id: str, filename: str, text: str | None = None, content_b64: str | None = None, firecrawl: FirecrawlClient | None = None) -> Source:
+    """md, txt, json direct; pdf, docx through firecrawl. every chunk keeps
+    doc provenance: the filename is the ref."""
+    chunks = await parse_document(filename, text=text, content_b64=content_b64, firecrawl=firecrawl)
+    cleaned = []
+    for c in chunks:
+        clean, _ = redact(c["text"])
+        cleaned.append({**c, "text": clean})
+    source = Source(
+        project_id=project_id,
+        kind="doc",
+        url=filename,
+        content_hash=hashlib.sha256("".join(c["text"] for c in cleaned).encode()).hexdigest(),
+        meta={"filename": filename},
+    )
+    session.add(source)
+    await session.flush()
+    for i, c in enumerate(cleaned):
+        session.add(SourceChunk(source_id=source.id, idx=i, path=filename, lines_start=c["lines_start"], lines_end=c["lines_end"], text=c["text"], kind="doc"))
+    await session.commit()
+    return source
+
+
+async def add_url_source(session: AsyncSession, project_id: str, url: str, firecrawl: FirecrawlClient | None = None, client=None) -> Source:
+    """one page as a source. html pages parse locally; pdfs go through
+    firecrawl. provenance is the url itself."""
+    import httpx
+
+    if url.lower().endswith(".pdf"):
+        markdown = await (firecrawl or FirecrawlClient()).scrape_markdown(url)
+        text = markdown
+    else:
+        own = client
+        if own is None:
+            own = httpx.AsyncClient(timeout=30, follow_redirects=True)
+        try:
+            r = await own.get(url)
+            r.raise_for_status()
+            text = html_to_text(r.text) if "html" in r.headers.get("content-type", "") else r.text
+        finally:
+            if client is None:
+                await own.aclose()
+    text, _ = redact(text)
+    source = Source(
+        project_id=project_id,
+        kind="url",
+        url=url,
+        content_hash=hashlib.sha256(text.encode()).hexdigest(),
+        meta={},
+    )
+    session.add(source)
+    await session.flush()
+    for i, c in enumerate(parse_direct_text(text, url, kind="url")):
+        session.add(SourceChunk(source_id=source.id, idx=i, path=url, lines_start=c["lines_start"], lines_end=c["lines_end"], text=c["text"], kind="url"))
+    await session.commit()
+    return source
+
+
+async def crawl_docsite_source(session: AsyncSession, project_id: str, root_url: str, budget: int = 30, client=None) -> Source:
+    """a bounded same-root crawl of a doc site (gitbook, quartz). each page
+    is stored as its own url chunk; the unread report is kept in source.meta."""
+    result = await crawl_docsite(root_url, budget=budget, client=client)
+    pages, report = result["pages"], result["report"]
+    source = Source(
+        project_id=project_id,
+        kind="url",
+        url=root_url,
+        content_hash=hashlib.sha256("".join(p["text"] for p in pages).encode()).hexdigest(),
+        meta={"report": {k: v for k, v in report.items() if k != "unread_budget"} | {"unread_budget_count": len(report.get("unread_budget", []))}},
+    )
+    session.add(source)
+    await session.flush()
+    idx = 0
+    for p in pages:
+        for c in parse_direct_text(p["text"], p["url"], kind="url"):
+            session.add(SourceChunk(source_id=source.id, idx=idx, path=p["url"], lines_start=c["lines_start"], lines_end=c["lines_end"], text=c["text"], kind="url"))
+            idx += 1
     await session.commit()
     return source
 
@@ -110,7 +195,7 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
         )
     ).scalars().all()
     chunk_dicts = [
-        {"path": c.path or "", "text": c.text, "lines_start": c.lines_start or 0, "lines_end": c.lines_end or 0, "commit_sha": None}
+        {"path": c.path or "", "text": c.text, "lines_start": c.lines_start or 0, "lines_end": c.lines_end or 0, "commit_sha": None, "kind": c.kind or "file"}
         for c in chunks
     ]
     static = brain.extraction.static_pass(chunk_dicts)
