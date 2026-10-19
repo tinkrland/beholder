@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     # provider for the gateway: "glm" or "mock" (tests, local runs without keys)
     gateway_provider: str = "glm"
 
+    # forge urls: gitlab and gitea are usually self-hosted, github and
+    # bitbucket cloud are fixed. urls and tokens stay overridable, always.
+    github_token: str | None = None
+    gitlab_url: str = "https://gitlab.com/api/v4"
+    gitlab_token: str | None = None
+    bitbucket_token: str | None = None
+    gitea_url: str = "https://gitea.com/api/v1"
+    gitea_token: str | None = None
+
     # firecrawl: pdf, docx, and url to markdown. optional: direct formats
     # (md, txt, json) never need it, and the doc-site crawler is plain http.
     firecrawl_api_key: str | None = None

@@ -9,7 +9,8 @@ from sqlalchemy import select
 
 from .db import Session
 from .models import Job
-from .service import crawl_docsite_source, sync_repo_source
+from .ingest.forge import forge_name_for_url
+from .service import resolve_forge_token, crawl_docsite_source, sync_repo_source
 
 
 async def process_one(session) -> Job | None:
@@ -23,12 +24,15 @@ async def process_one(session) -> Job | None:
 
     try:
         if row.kind == "sync_repo":
+            name = forge_name_for_url(row.payload["repo_url"], row.payload.get("forge"))
+            token = await resolve_forge_token(session, row.user_id, name, row.payload.get("token"))
             src = await sync_repo_source(
                 session,
                 row.project_id,
                 row.payload["repo_url"],
-                row.payload.get("ref", "main"),
-                row.payload.get("token"),
+                row.payload["ref"],
+                token=token,
+                forge=row.payload.get("forge"),
             )
             row.progress = {"source_id": src.id}
         elif row.kind == "crawl_docsite":

@@ -3,7 +3,7 @@ them with line ranges, redact secrets before anything else sees the text.
 a map that names what it did not read comes back with the chunks."""
 
 from .excludes import Excludes, select_tree
-from .forge import GithubForge, parse_repo_url
+from .forge import forge_for_url, parse_repo_url
 from .secrets import redact
 
 CHUNK_LINES = 120
@@ -31,13 +31,13 @@ def chunk_text(text: str, path: str, sha: str | None = None, chunk_lines: int = 
 def walk_repo(
     repo_url: str,
     ref: str,
-    forge: GithubForge | None = None,
+    forge=None,
     budget: int = 200,
     beholderignore: str | None = None,
 ) -> dict:
     """returns {chunks, report}. the report carries selected/skipped/unread and
     the commit sha, so every fact can cite repo, ref, path, lines, sha."""
-    forge = forge or GithubForge()
+    forge = forge or forge_for_url(repo_url)
     repo = "/".join(parse_repo_url(repo_url))
     tree = forge.list_tree(repo, ref)
     paths = [e["path"] for e in tree]

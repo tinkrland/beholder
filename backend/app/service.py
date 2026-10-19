@@ -11,12 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from . import brain
 from .db import Json  # noqa: F401  (type registration)
 from .ingest import repo_walk as walk_mod
+from .ingest.forge import FORGES, _env_tokens, forge_for_url, forge_name_for_url
 from .ingest.docsite import crawl as crawl_docsite
 from .ingest.docs import parse_direct_text, parse_document
 from .ingest.firecrawl import FirecrawlClient
 from .ingest.html import html_to_text
 from .ingest.secrets import redact
 from .models import (
+    ForgeAccount,
     ClaimCheck,
     Fact,
     Gap,
@@ -160,17 +162,59 @@ async def crawl_docsite_source(session: AsyncSession, project_id: str, root_url:
     return source
 
 
-async def sync_repo_source(session: AsyncSession, project_id: str, repo_url: str, ref: str, token: str | None = None) -> Source:
-    """the rest walk: tree, excludes, selected blobs, redaction, chunks. the
-    unread report is stored in source.meta, not dropped."""
-    from .ingest.forge import GithubForge
+async def upsert_forge_account(session: AsyncSession, user_id: str, forge: str, token: str) -> ForgeAccount:
+    """one connected account per user and forge. upsert keeps the newest
+    token: rotating a credential is a replace, not an accumulation."""
+    if forge not in FORGES:
+        raise ValueError(f"unknown forge: {forge}")
+    row = (await session.execute(select(ForgeAccount).where(ForgeAccount.user_id == user_id, ForgeAccount.forge == forge))).scalar_one_or_none()
+    if row:
+        row.token = token
+    else:
+        row = ForgeAccount(user_id=user_id, forge=forge, token=token)
+        session.add(row)
+    await session.commit()
+    return row
 
-    result = walk_mod.walk_repo(repo_url, ref, forge=GithubForge(token))
+
+async def list_forge_accounts(session: AsyncSession, user_id: str) -> list[ForgeAccount]:
+    return (await session.execute(select(ForgeAccount).where(ForgeAccount.user_id == user_id).order_by(ForgeAccount.forge))).scalars().all()
+
+
+async def delete_forge_account(session: AsyncSession, user_id: str, forge: str) -> bool:
+    """revocation is immediate and complete: the token row is deleted, not
+    flagged. private repos become unreadable the next sync."""
+    row = (await session.execute(select(ForgeAccount).where(ForgeAccount.user_id == user_id, ForgeAccount.forge == forge))).scalar_one_or_none()
+    if not row:
+        return False
+    await session.delete(row)
+    await session.commit()
+    return True
+
+
+async def resolve_forge_token(session: AsyncSession, user_id: str, forge: str, explicit: str | None = None) -> str | None:
+    """token priority: the token passed with the request, then the connected
+    account, then the instance env token, then anonymous. the account wins
+    over env so a hosted deploy can serve many users with one fallback."""
+    if explicit:
+        return explicit
+    row = (await session.execute(select(ForgeAccount).where(ForgeAccount.user_id == user_id, ForgeAccount.forge == forge))).scalar_one_or_none()
+    if row:
+        return row.token
+    return _env_tokens().get(forge)
+
+
+async def sync_repo_source(session: AsyncSession, project_id: str, repo_url: str, ref: str, token: str | None = None, forge: str | None = None) -> Source:
+    """the rest walk: tree, excludes, selected blobs, redaction, chunks. any
+    forge: the adapter follows the repo url, github, gitlab, bitbucket, or
+    gitea. the unread report is stored in source.meta, not dropped."""
+    name = forge_name_for_url(repo_url, forge)
+    result = walk_mod.walk_repo(repo_url, ref, forge=forge_for_url(repo_url, token=token, override=forge))
     chunks, report = result["chunks"], result["report"]
     source = Source(
         project_id=project_id,
         kind="repo",
-        forge="github",
+        forge=name,
         ref=ref,
         url=repo_url,
         commit_sha=report.get("commit_sha"),
@@ -419,8 +463,8 @@ async def export_view_row(session: AsyncSession, view_id: str, format_id: str, c
     return row
 
 
-async def enqueue_job(session: AsyncSession, kind: str, project_id: str | None, payload: dict) -> Job:
-    row = Job(kind=kind, project_id=project_id, payload=payload)
+async def enqueue_job(session: AsyncSession, kind: str, project_id: str | None, payload: dict, user_id: str | None = None) -> Job:
+    row = Job(kind=kind, project_id=project_id, user_id=user_id, payload=payload)
     session.add(row)
     await session.commit()
     return row

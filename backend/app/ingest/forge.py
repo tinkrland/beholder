@@ -79,3 +79,45 @@ class GithubForge:
         if data.get("encoding") == "base64":
             content = base64.b64decode(content).decode("utf-8", errors="replace")
         return {"content": content, "commit_sha": data.get("sha", "")}
+
+# ---------- the forge registry ----------
+
+from urllib.parse import urlparse
+
+from ..config import settings
+from .bitbucket import BitbucketForge
+from .gitea import GiteaForge
+from .gitlab import GitlabForge
+
+KNOWN_HOSTS = {"github.com": "github", "gitlab.com": "gitlab", "bitbucket.org": "bitbucket", "gitea.com": "gitea"}
+FORGES = {"github": GithubForge, "gitlab": GitlabForge, "bitbucket": BitbucketForge, "gitea": GiteaForge}
+
+
+def _env_tokens() -> dict:
+    return {
+        "github": settings.github_token,
+        "gitlab": settings.gitlab_token,
+        "bitbucket": settings.bitbucket_token,
+        "gitea": settings.gitea_token,
+    }
+
+
+def forge_name_for_url(url: str, override: str | None = None) -> str:
+    if override:
+        if override not in FORGES:
+            raise ValueError(f"unknown forge: {override}")
+        return override
+    host = urlparse(url).netloc.lower()
+    if host in KNOWN_HOSTS:
+        return KNOWN_HOSTS[host]
+    for name, base in (("gitlab", settings.gitlab_url), ("gitea", settings.gitea_url)):
+        if host == urlparse(base).netloc:
+            return name
+    raise ValueError(f"unknown forge host: {host}. pass forge explicitly for self-hosted instances.")
+
+
+def forge_for_url(url: str, token: str | None = None, override: str | None = None, transport=None):
+    """an adapter for the repo's forge. token priority is handled by the
+    caller (the account resolver); this stays a pure constructor."""
+    name = forge_name_for_url(url, override)
+    return FORGES[name](token=token, transport=transport)

@@ -70,6 +70,18 @@ async def test_mvp_flow(client):
     types = {f["provenance"][0]["type"] for f in facts}
     assert "doc" in types  # doc sources carry doc provenance
 
+    # connected forge accounts: connect, masked listing, immediate revocation
+    r = await client.put("/api/forge/accounts", json={"forge": "github", "token": "ghp_private_token"})
+    assert r.status_code == 200, r.text
+    r = await client.get("/api/forge/accounts")
+    accounts = r.json()
+    assert len(accounts) == 1 and accounts[0]["token_hint"] == "oken"
+    assert all("token" not in a or a.get("token") != "ghp_private_token" for a in accounts)
+    r = await client.delete("/api/forge/accounts/github")
+    assert r.status_code == 200
+    r = await client.get("/api/forge/accounts")
+    assert r.json() == []
+
     # grounding: the nine w's coverage check over the fact set
     r = await client.get(f"/api/projects/{project_id}/grounding")
     assert r.status_code == 200, r.text

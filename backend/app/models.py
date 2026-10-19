@@ -223,10 +223,23 @@ class Export(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class ForgeAccount(Base):
+    """a connected forge account: one per user and forge. tokens are read-only
+    repo credentials; stored server-side, never echoed back whole."""
+
+    __tablename__ = "forge_accounts"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    user_id: Mapped[str] = mapped_column(String(36))
+    forge: Mapped[str] = mapped_column(Text)  # github | gitlab | bitbucket | gitea
+    token: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Job(Base):
     __tablename__ = "jobs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     project_id: Mapped[str | None] = mapped_column(String(36))
+    user_id: Mapped[str | None] = mapped_column(String(36))  # who enqueued: token resolution needs it
     kind: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, default="pending")  # pending | running | done | failed
     payload: Mapped[dict] = mapped_column(json_type(), default=dict)

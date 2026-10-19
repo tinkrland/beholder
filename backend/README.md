@@ -17,9 +17,11 @@ app/
   brain/             extraction, lens building, scoring, claims, projection,
                      honesty, grounding (the nine w's coverage check). pure
                      functions, runner injected, no db, no http
-  ingest/            forge adapters (github first), the rest walk, doc-site
-                     crawls (gitbook, quartz), doc inputs (md/txt/json direct,
-                     pdf/docx via firecrawl), excludes, secret redaction
+  ingest/            forge adapters (github, gitlab, bitbucket, gitea, one
+                     file each, self-hosted urls overridable), the rest walk,
+                     doc-site crawls (gitbook, quartz), doc inputs (md/txt/
+                     json direct, pdf/docx via firecrawl), excludes, secret
+                     redaction
   api/routes.py      thin routes: validate, call the service
   jobs.py            one queue, one worker type, job rows as progress
 alembic/             migrations from day one
@@ -76,6 +78,16 @@ python -m pytest -q
 the gateway is mocked everywhere: brain tests run against canned runners, the
 api flow test runs the whole mvp pipeline over http against temp sqlite,
 including the honesty guard blocking export until facts are confirmed.
+
+## connected accounts
+
+private repos read through your own credentials, per forge: github tokens,
+gitlab tokens, bitbucket app passwords, gitea tokens. one account per forge:
+connecting again rotates the token, `delete /forge/accounts/{forge}` revokes
+immediately (the row is deleted, not flagged). token priority is the token
+passed with the request, then the connected account, then the instance env
+token, then anonymous. tokens are stored server-side and never returned whole:
+`get /forge/accounts` shows only a last-four hint.
 
 ## providers
 
