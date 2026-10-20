@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import brain
+from .config import settings
 from .db import Json  # noqa: F401  (type registration)
 from .ingest import repo_walk as walk_mod
 from .ingest.forge import FORGES, _env_tokens, forge_for_url, forge_name_for_url
@@ -76,8 +77,9 @@ async def add_text_source(session: AsyncSession, project_id: str, text: str, lab
     )
     session.add(source)
     await session.flush()
-    for i, c in enumerate(parse_direct_text(text, label)):
-        session.add(SourceChunk(source_id=source.id, idx=i, path=label, lines_start=c["lines_start"], lines_end=c["lines_end"], text=c["text"], kind=c.get("kind", "doc")))
+    # pasted text is user-stated: provenance type user, shown as such
+    for i, c in enumerate(parse_direct_text(text, label, kind="user")):
+        session.add(SourceChunk(source_id=source.id, idx=i, path=label, lines_start=c["lines_start"], lines_end=c["lines_end"], text=c["text"], kind=c.get("kind", "user")))
     await session.commit()
     return source
 
@@ -236,12 +238,21 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
     content hash keeps them identical across runs."""
     chunks = (
         await session.execute(
-            select(SourceChunk).join(Source).where(Source.project_id == project_id).order_by(SourceChunk.source_id, SourceChunk.idx)
+            select(SourceChunk, Source).join(Source).where(Source.project_id == project_id).order_by(Source.created_at, SourceChunk.source_id, SourceChunk.idx)
         )
-    ).scalars().all()
+    ).all()
     chunk_dicts = [
-        {"path": c.path or "", "text": c.text, "lines_start": c.lines_start or 0, "lines_end": c.lines_end or 0, "commit_sha": None, "kind": c.kind or "file"}
-        for c in chunks
+        {
+            "source_id": source.id,
+            "source_kind": source.kind,
+            "path": c.path or "",
+            "text": c.text,
+            "lines_start": c.lines_start or 0,
+            "lines_end": c.lines_end or 0,
+            "commit_sha": None,
+            "kind": c.kind or "file",
+        }
+        for c, source in chunks
     ]
     static = brain.extraction.static_pass(chunk_dicts)
     paths = sorted({c["path"] for c in chunk_dicts if c["path"]})
@@ -251,7 +262,9 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
     confirmed_hashes = {f.content_hash for f in existing if f.status == "confirmed"}
     rejected_hashes = {f.content_hash for f in existing if f.status == "rejected"}
 
-    semantic = await brain.extraction.semantic_pass(chunk_dicts, project_id, run)
+    semantic = await brain.extraction.semantic_pass(
+        brain.extraction.select_semantic_chunks(chunk_dicts, settings.semantic_chunks), project_id, run
+    )
 
     stored: list[Fact] = []
     for f in [*static, *structural, *semantic]:

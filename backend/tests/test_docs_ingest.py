@@ -120,6 +120,61 @@ def test_firecrawl_without_key_is_honest():
     assert asyncio.run(go())
 
 
+def test_semantic_selection_prioritizes_prose_and_round_robins():
+    """text beats doc beats url beats repo; sources of equal priority
+    alternate, so one long doc cannot eat the whole budget."""
+    from app.brain.extraction import select_semantic_chunks
+
+    def chunk(source_id, source_kind, idx):
+        return {"source_id": source_id, "source_kind": source_kind, "path": f"{source_kind}-{idx}", "text": "x"}
+
+    rows = (
+        [chunk("r1", "repo", i) for i in range(6)]
+        + [chunk("u1", "text", 0)]
+        + [chunk("d2", "doc", i) for i in range(5)]
+        + [chunk("d1", "doc", i) for i in range(5)]
+    )
+    picked = select_semantic_chunks(rows, 6)
+    kinds = [(r["source_kind"], r["source_id"]) for r in picked]
+    assert kinds == [("text", "u1"), ("doc", "d1"), ("doc", "d2"), ("doc", "d1"), ("doc", "d2"), ("doc", "d1")]
+    # the repo source is never read while prose sources still have chunks
+    assert all(r["source_kind"] != "repo" for r in picked)
+    # within a source, stored order is kept
+    d1 = [r["path"] for r in picked if r["source_id"] == "d1"]
+    assert d1 == ["doc-0", "doc-1", "doc-2"]
+
+
+def test_semantic_selection_budget_runs_dry():
+    from app.brain.extraction import select_semantic_chunks
+
+    rows = [ {"source_id": "d1", "source_kind": "doc", "path": f"d{i}", "text": "x"} for i in range(3)]
+    assert len(select_semantic_chunks(rows, 99)) == 3
+
+
+async def test_pasted_text_is_user_provenance(db_session):
+    """the user's own words cite provenance type user, not doc."""
+    from app.service import add_text_source
+
+    from app.models import Project, ProjectMember, User
+
+    user = User(auth_id="t", email="t@t.dev")
+    db_session.add(user)
+    await db_session.commit()
+    project = Project(name="text project")
+    db_session.add(project)
+    await db_session.flush()
+    db_session.add(ProjectMember(project_id=project.id, user_id=user.id))
+    await db_session.commit()
+
+    src = await add_text_source(db_session, project.id, "we sell to jewelers", "my note")
+    chunks = (await db_session.execute(
+        __import__("sqlalchemy").select(__import__("app.models", fromlist=["SourceChunk"]).SourceChunk).where(
+            __import__("app.models", fromlist=["SourceChunk"]).SourceChunk.source_id == src.id
+        )
+    )).scalars().all()
+    assert chunks and all(c.kind == "user" for c in chunks)
+
+
 async def test_doc_source_extraction_keeps_doc_provenance(db_session):
     from app.service import add_doc_source, create_project, extract_facts
     from conftest import FakeRun

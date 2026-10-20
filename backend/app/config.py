@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     firecrawl_api_key: str | None = None
     firecrawl_base_url: str = "https://api.firecrawl.dev"
 
+    # how many chunks the semantic pass reads per extraction. prose sources
+    # are prioritized before code; this caps cost, not coverage of them.
+    semantic_chunks: int = 8
+
     # dev only: skip jwt verification. never enable with a public bind.
     dev_auth: bool = False
 

@@ -16,6 +16,48 @@ from ..schemas import FactIn, Provenance
 Runner = object  # any async callable (task_id, payload) -> dict
 
 
+# source priority for the semantic pass: the build order says it reads docs,
+# readme, and pasted text. the user's own words are the densest signal, then
+# uploaded docs, then crawled pages, then repo files (already stored with
+# readme first).
+SELECTION_PRIORITY = {"text": 0, "doc": 1, "url": 2, "repo": 3}
+
+
+def select_semantic_chunks(chunk_rows: list[dict], max_chunks: int) -> list[dict]:
+    """picks what the semantic pass reads. sources in priority order, then
+    round-robin across sources of equal priority, so one long document
+    cannot eat the whole budget before a second source is read at all.
+    chunks stay in their stored order within a source: a repo's chunks
+    are already ranked (readme first)."""
+    groups: dict[int, dict[str, list[dict]]] = {}
+    for row in chunk_rows:
+        sid = str(row.get("source_id", ""))
+        prio = SELECTION_PRIORITY.get(row.get("source_kind", "repo"), 3)
+        groups.setdefault(prio, {}).setdefault(sid, []).append(row)
+    picked: list[dict] = []
+    for prio in sorted(groups):
+        # round-robin across the sources of this priority: one chunk each
+        # per turn, so no single source can eat the group's whole share
+        buckets = groups[prio]
+        cursor = 0
+        while len(picked) < max_chunks:
+            progressed = False
+            for sid in sorted(buckets):
+                bucket = buckets[sid]
+                if cursor >= len(bucket):
+                    continue
+                picked.append(bucket[cursor])
+                progressed = True
+                if len(picked) >= max_chunks:
+                    break
+            if not progressed:
+                break
+            cursor += 1
+        if len(picked) >= max_chunks:
+            break
+    return picked
+
+
 def _prov(ref: str, lines: list[int] | None = None, sha: str | None = None, kind: str = "file") -> list[Provenance]:
     return [Provenance(type=kind, ref=ref, lines=lines, commit_sha=sha)]
 
