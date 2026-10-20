@@ -8,6 +8,7 @@ fine-tuned model can slot in behind the same interface later with no caller
 changes: the brain passes task ids, never provider names.
 """
 
+import asyncio
 import hashlib
 import json
 from dataclasses import dataclass, field
@@ -171,9 +172,12 @@ class GlmProvider:
             "temperature": spec.temperature,
         }
         last_error: Exception | None = None
-        # a thinking model on a big composite payload (pitch, consistency)
-        # regularly runs past two minutes. the socket must outlive it.
-        for attempt in range(3):
+        # back-to-back retries die together when the provider has a bad
+        # minute (transient 504s under load). spacing the attempts gives
+        # the provider time to recover before the last try.
+        for attempt, backoff in enumerate((0, 5, 20)):
+            if backoff:
+                await asyncio.sleep(backoff)
             try:
                 async with httpx.AsyncClient(timeout=600) as client:
                     r = await client.post(

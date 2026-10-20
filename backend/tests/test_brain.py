@@ -195,7 +195,7 @@ async def test_projector_drops_unbound_and_binds_rest():
     f = fact("f1")
     run = FakeRun(
         {
-            "generate_view": {"sentences": ["bound sentence one.", "unbound fluff."]},
+            "generate_view": lambda pl: ({"sentences": ["bound sentence one.", "unbound fluff."]} if pl["section_key"] == "one_liner" else {"sentences": []}),
             "bind_sentences": {
                 "bindings": [
                     {"index": 0, "fact_ids": ["f1"], "criterion_ids": []},
@@ -216,8 +216,8 @@ async def test_projector_drops_unbound_and_binds_rest():
 async def test_projector_has_nine_sections():
     run = FakeRun(
         {
-            "generate_view": {"sentences": ["a bound sentence."]},
-            "bind_sentences": {"bindings": [{"index": i, "fact_ids": ["f1"], "criterion_ids": []} for i in range(40)]},
+            "generate_view": lambda pl: {"sentences": ["a bound sentence."]},
+            "bind_sentences": lambda pl: {"bindings": [{"index": i, "fact_ids": ["f1"], "criterion_ids": []} for i in range(len(pl["sentences"].split("\n")))]},
         }
     )
     view = await projector.project("t1", "mv1", [fact()], lens(), run)
@@ -338,13 +338,15 @@ async def test_projector_sends_each_section_its_own_facts_not_the_corpus():
     import app.brain.projector as proj
 
     seen = []
+    bind_seen = []
 
     class RecordingRun:
         async def __call__(self, task_id, payload):
             if task_id == "generate_view":
                 seen.append(len(payload["facts"].split("\n")))
-                return {"sentences": []}
-            return {"bindings": []}
+                return {"sentences": ["one sentence to bind."]}
+            bind_seen.append(len(payload["facts"].split("\n")))
+            return {"bindings": [{"index": 0, "fact_ids": ["f0"], "criterion_ids": []}]}
 
     many = [
         FactIn(
@@ -359,5 +361,6 @@ async def test_projector_sends_each_section_its_own_facts_not_the_corpus():
     outs = [FactOut(**f.model_dump(), id=f"f{i}", content_hash=f"h{i}") for i, f in enumerate(many)]
     await proj.project("t1", "mv1", outs, lens(), RecordingRun())
     assert len(seen) == 9, "one call per section"
-    assert all(n <= 32 for n in seen), f"section payloads too big: {seen}"
+    assert len(bind_seen) == 9, "one bind per section"
+    assert all(n <= 32 for n in seen + bind_seen), f"payloads too big: {seen} / {bind_seen}"
     assert all(n > 0 for n in seen)

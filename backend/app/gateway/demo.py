@@ -53,13 +53,15 @@ def demo_responder(spec, user_content: str) -> dict:
 
     if spec.task_id == "bind_sentences":
         ids = re.findall(r"\[([0-9a-f-]{36})\]", user_content)
-        bindings = []
-        for i in range(24):
-            if i == 0 or not ids:
-                bindings.append({"index": i, "fact_ids": [], "criterion_ids": []})
-            else:
-                bindings.append({"index": i, "fact_ids": [ids[0]], "criterion_ids": []})
-        return {"bindings": bindings}
+        # one binding per sentence actually sent: the canned response
+        # must round-trip the request's shape, not a fixed range
+        count = len(re.findall(r"^\d+: ", user_content, re.M))
+        return {
+            "bindings": [
+                {"index": i, "fact_ids": [ids[0]] if ids else [], "criterion_ids": []}
+                for i in range(count)
+            ]
+        }
 
     if spec.task_id == "draft_lens":
         return {"name": "demo reader", "criteria": [{"name": "fit", "description": "does it fit"}], "impresses": ["honesty"]}

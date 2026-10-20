@@ -27,8 +27,10 @@ async def project(target_id: str, model_version_id: str, facts: list[FactOut], l
     fact_ids = {f.id: f for f in facts}
 
     all_sentences: list[str] = []
+    sentences: list[Sentence] = []
     section_list: list[Section] = []
     dropped: list[dict] = []
+    crit_names = {c.name for c in lens.criteria}
 
     for skey in _SECTION_ORDER:
         # each section sees only facts ranked relevant to its theme. one
@@ -40,57 +42,55 @@ async def project(target_id: str, model_version_id: str, facts: list[FactOut], l
             "generate_view",
             {"section_key": skey, "lens": lens_blob, "facts": render_facts(sel)},
         )
+        texts = [str(t).strip() for t in out.get("sentences", []) if str(t).strip()]
+        if not texts:
+            section_list.append(Section(key=skey, sentence_ids=[]))
+            continue
+
+        # binding runs per section too, against the same slice the section
+        # was written from: a sentence can only rest on evidence its
+        # section actually had. one giant bind over the whole corpus was
+        # the slowest call in the pipeline and the first to outrun the
+        # gateway proxy.
+        bind_out = await run(
+            "bind_sentences",
+            {
+                "criteria": "\n".join(c.name for c in lens.criteria),
+                "facts": render_facts(sel),
+                "sentences": "\n".join(f"{i}: {s}" for i, s in enumerate(texts)),
+            },
+        )
+        bound_by_index = {b.get("index"): b for b in bind_out.get("bindings", [])}
+
         sids: list[str] = []
-        for text in out.get("sentences", []):
-            text = str(text).strip()
-            if not text:
-                continue
-            all_sentences.append(text)
-            sids.append(f"{skey}:{len(all_sentences) - 1}")
-        section_list.append(Section(key=skey, sentence_ids=sids))
-
-    # one binding pass over every sentence
-    bindings = await run(
-        "bind_sentences",
-        {
-            "criteria": "\n".join(c.name for c in lens.criteria),
-            "facts": render_facts(facts),
-            "sentences": "\n".join(f"{i}: {s}" for i, s in enumerate(all_sentences)),
-        },
-    )
-    bound_by_index = {b.get("index"): b for b in bindings.get("bindings", [])}
-
-    sentences: list[Sentence] = []
-    kept_sections: list[Section] = []
-    kept_ids = set()
-    for section in section_list:
-        sids = []
-        for sid in section.sentence_ids:
-            _, idx = sid.split(":", 1)
-            idx = int(idx)
-            b = bound_by_index.get(idx, {})
+        for i, text in enumerate(texts):
+            b = bound_by_index.get(i, {})
             fact_ids_bound = [f for f in b.get("fact_ids", []) if f in fact_ids]
-            crit_ids = [c for c in b.get("criterion_ids", []) if c in {x.name for x in lens.criteria}]
+            crit_ids = [c for c in b.get("criterion_ids", []) if c in crit_names]
             if not fact_ids_bound and not crit_ids:
-                dropped.append({"section": section.key, "text": all_sentences[idx], "reason": "unbound"})
+                dropped.append({"section": skey, "text": text, "reason": "unbound"})
                 continue
             needs_confirmation = any(
                 fact_ids_bound and f.status != "confirmed" and f.confidence < CONFIRM_THRESHOLD
                 for f in (fact_ids.get(fid) for fid in fact_ids_bound)
                 if f
             )
+            sid = f"{skey}:{len(all_sentences)}"
+            all_sentences.append(text)
             sentences.append(
                 Sentence(
                     id=sid,
-                    text=all_sentences[idx],
+                    text=text,
                     fact_ids=fact_ids_bound,
                     criterion_ids=crit_ids,
                     needs_confirmation=needs_confirmation,
                 )
             )
             sids.append(sid)
-            kept_ids.add(sid)
-        kept_sections.append(Section(key=section.key, sentence_ids=sids))
+        section_list.append(Section(key=skey, sentence_ids=sids))
+
+    kept_sections = section_list
+    kept_ids = {s.id for s in sentences}
 
     view = PitchViewOut(
         id="",
