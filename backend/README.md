@@ -38,6 +38,7 @@ rules the code keeps:
 - model_version, score, pitch_view, export are immutable, insert-only
 - a draft lens never scores; confirmation echoes every criterion back (name and weight each) and the echo must match the lens: a review that never showed the numbers is not a review. drafts are editable via PUT /lenses/{id}; a weight the human changes stops being marked inferred
 - unbound sentences fail the render; export is blocked on honesty failures
+- fact editor over http: POST /projects/{id}/facts (user-stated, confirmed by authorship), PUT /facts/{id} (edit), POST /facts/{id}/review (confirm or reject); any fact change flags the project's views stale, rejected facts never feed the model
 - provenance comes from the chunk, never from the model
 - the nine w's (thewframework/) are the extraction map: grounding reports
   grounded, partial, or silent per dimension, and silence is surfaced, never

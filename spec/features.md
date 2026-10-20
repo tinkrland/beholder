@@ -72,7 +72,7 @@ nine fixed sections, the same for every target so views compare side by side:
 
 ## iteration
 
-- edit a fact, see scores and gaps update **later**
+- edit a fact, see scores and gaps update **mvp**: any fact change (add, edit, confirm, reject) flags the views that rested on the old fact set as stale. scores are insert-only history: the new fact set speaks on the next score, and rejected facts never feed the model again
 - "what if I add a demo video" simulation **later**
 
 ## matching

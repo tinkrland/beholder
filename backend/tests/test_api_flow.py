@@ -215,6 +215,36 @@ async def test_mvp_flow(client):
     assert r.status_code == 200, r.text
     assert "## one_liner" in r.json()["body"]
 
+    # the fact editor: add a user-stated fact, edit an extracted one, reject
+    # a third. views that rested on the old fact set are flagged stale, and
+    # a rejected fact never feeds the model again.
+    r = await client.post(
+        f"/api/projects/{project_id}/facts",
+        json={"kind": "capability", "statement": "the maintainer ships weekly", "confidence": 0.9},
+    )
+    assert r.status_code == 200, r.text
+    user_fact = r.json()["fact"]
+    assert user_fact["status"] == "confirmed"
+    assert user_fact["provenance"][0]["type"] == "user"
+    assert r.json()["stale_views"] >= 1  # views that rested on the old fact set
+
+    fact_list = (await client.get(f"/api/projects/{project_id}/facts")).json()
+    victim = next(f for f in fact_list if f["id"] != fact_list[0]["id"])
+    r = await client.put(f"/api/facts/{victim['id']}", json={"kind": victim["kind"], "statement": "edited by the reviewer: " + victim["statement"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["fact"]["status"] == "confirmed"
+    assert r.json()["stale_views"] == 0  # already flagged by the add, not re-counted
+
+    r = await client.post(f"/api/facts/{fact_list[0]['id']}/review", json={"status": "rejected"})
+    assert r.status_code == 200, r.text
+    assert r.json()["fact"]["status"] == "rejected"
+    after = (await client.get(f"/api/projects/{project_id}/facts")).json()
+    assert any(f["status"] == "rejected" for f in after)  # still in the editor, undoable
+
+    # a re-score speaks the new fact set: the rejected fact is out
+    r = await client.post(f"/api/targets/{target_id}/score")
+    assert r.status_code == 200, r.text
+
 
 async def test_projects_of_others_do_not_exist_to_you(client):
     await client.post("/api/projects", json={"name": "mine"})

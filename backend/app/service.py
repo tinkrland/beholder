@@ -596,14 +596,84 @@ async def create_target(session: AsyncSession, project_id: str, lens_id: str, la
 
 
 async def load_facts_for_model(session: AsyncSession, project_id: str, model_version_id: str | None) -> list[FactOut]:
+    """rejected facts never feed the model: a rejected fact is evidence the
+    user threw out, and letting it score would be the opposite of a review."""
     if model_version_id:
         version = await session.get(ModelVersion, model_version_id)
         if version is None:
             raise ValueError("model version not found")
-        rows = (await session.execute(select(Fact).where(Fact.id.in_(version.fact_ids)))).scalars().all()
+        rows = (await session.execute(select(Fact).where(Fact.id.in_(version.fact_ids), Fact.status != "rejected"))).scalars().all()
     else:
-        rows = await list_facts(session, project_id)
+        rows = (await session.execute(select(Fact).where(Fact.project_id == project_id, Fact.status != "rejected"))).scalars().all()
     return [fact_out(r) for r in rows]
+
+
+async def mark_views_stale(session: AsyncSession, project_id: str) -> int:
+    """a fact changed, so views built on the old fact set are flagged, not
+    silently wrong. scores are insert-only history: the new fact set speaks
+    when the next score runs."""
+    views = (
+        await session.execute(
+            select(PitchView).join(Target).where(Target.project_id == project_id, PitchView.stale == False)  # noqa: E712
+        )
+    ).scalars().all()
+    for v in views:
+        v.stale = True
+    return len(views)
+
+
+async def add_user_fact(session: AsyncSession, project_id: str, body) -> tuple[Fact, int]:
+    """facts the user adds are user-stated and confirmed by authorship, same
+    as an authored preset: no parse, no review step, provenance is the user."""
+    row = Fact(
+        project_id=project_id,
+        kind=body.kind,
+        statement=body.statement.strip(),
+        value=body.value,
+        provenance=[{"type": "user", "ref": "user", "lines": None, "page": None, "commit_sha": None, "forge": None, "repo_id": None}],
+        confidence=body.confidence,
+        status="confirmed",
+        content_hash=_content_hash(body.statement.strip(), [Provenance(type="user", ref="user")]),
+    )
+    session.add(row)
+    await session.flush()
+    stale = await mark_views_stale(session, project_id)
+    await session.commit()
+    return row, stale
+
+
+async def edit_fact(session: AsyncSession, fact_id: str, body) -> tuple[Fact, int]:
+    """editing a fact is human authorship: the edited statement is confirmed
+    (the human vouches for it) and the hash changes, so a re-extraction that
+    re-derives the original leaves both standing, honestly distinguished."""
+    row = await session.get(Fact, fact_id)
+    if row is None:
+        raise ValueError("fact not found")
+    row.kind = body.kind
+    row.statement = body.statement.strip()
+    if body.value is not None:
+        row.value = body.value
+    row.status = "confirmed"
+    provs = [Provenance(**p) for p in row.provenance]
+    row.content_hash = _content_hash(row.statement, provs)
+    stale = await mark_views_stale(session, row.project_id)
+    await session.commit()
+    return row, stale
+
+
+async def review_fact(session: AsyncSession, fact_id: str, status: str) -> tuple[Fact, int]:
+    """confirm or reject. confirmation vouches for the statement as it stands;
+    rejection keeps the row (the user may undo) but it never feeds the model,
+    and the content hash keeps it rejected across re-extractions."""
+    if status not in ("confirmed", "rejected"):
+        raise ValueError("status must be confirmed or rejected")
+    row = await session.get(Fact, fact_id)
+    if row is None:
+        raise ValueError("fact not found")
+    row.status = status
+    stale = await mark_views_stale(session, row.project_id)
+    await session.commit()
+    return row, stale
 
 
 async def score_target_rows(session: AsyncSession, target: Target, run) -> Score:

@@ -386,6 +386,76 @@ async def get_facts(
     ]
 
 
+class UserFactIn(BaseModel):
+    kind: str
+    statement: str
+    value: dict | None = None
+    confidence: float = 0.9
+
+
+class FactEditIn(BaseModel):
+    kind: str
+    statement: str
+    value: dict | None = None
+
+
+class FactReviewIn(BaseModel):
+    status: str  # confirmed | rejected
+
+
+@router.post("/projects/{project_id}/facts")
+async def post_user_fact(
+    project_id: str,
+    body: UserFactIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """a fact the user states is user-stated: confirmed by authorship,
+    provenance is the user, no model in the loop."""
+    await require_project_access(user, project_id, session)
+    from ..service import add_user_fact, fact_out
+
+    row, stale = await add_user_fact(session, project_id, body)
+    return {"fact": fact_out(row).model_dump(), "stale_views": stale}
+
+
+@router.put("/facts/{fact_id}")
+async def put_fact(
+    fact_id: str,
+    body: FactEditIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """the fact editor's edit: an edited fact is confirmed by the human who
+    edited it, views that rested on the old statement are flagged stale."""
+    from ..service import edit_fact, fact_out
+
+    try:
+        row, stale = await edit_fact(session, fact_id, body)
+    except ValueError as e:
+        raise HTTPException(404 if "not found" in str(e) else 409, str(e))
+    return {"fact": fact_out(row).model_dump(), "stale_views": stale}
+
+
+@router.post("/facts/{fact_id}/review")
+async def post_fact_review(
+    fact_id: str,
+    body: FactReviewIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """confirm or reject a fact. rejected facts stay in the editor (undoable)
+    but never feed the model: scores and views must rest on accepted evidence
+    only."""
+    from ..service import review_fact, fact_out
+
+    try:
+        row, stale = await review_fact(session, fact_id, body.status)
+    except ValueError as e:
+        raise HTTPException(404 if "not found" in str(e) else 409, str(e))
+    return {"fact": fact_out(row).model_dump(), "stale_views": stale}
+
+
 @router.post("/lenses/parse-rubric")
 async def post_parse_rubric(
     body: RubricIn,

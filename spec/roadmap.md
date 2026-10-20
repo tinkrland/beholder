@@ -20,8 +20,8 @@
 
 ## stage 3: consistency and iteration
 
-- consistency check across targets
-- edit a fact, see scores and gaps update
+- consistency check across targets (done, oct 19 2026)
+- edit a fact, see scores and gaps update (done, oct 20 2026: POST /projects/{id}/facts, PUT /facts/{id}, POST /facts/{id}/review; fact changes flag views stale, rejected facts never feed the model)
 - model versioning and diff
 - repo re-sync with change summaries
 - more formats: demo script, deck outline, partner one-pager
