@@ -23,7 +23,7 @@
 - consistency check across targets (done, oct 19 2026)
 - edit a fact, see scores and gaps update (done, oct 20 2026: POST /projects/{id}/facts, PUT /facts/{id}, POST /facts/{id}/review; fact changes flag views stale, rejected facts never feed the model)
 - model versioning and diff (done, oct 20 2026: GET /projects/{id}/model-versions lists the snapshots, diff compares by content hash so re-derived facts are not churn, review actions show as status changes)
-- repo re-sync with change summaries
+- repo re-sync with change summaries (done, oct 20 2026: POST /sources/{id}/resync, insert-only source history, per-file diff in meta.change_summary)
 - more formats: demo script, deck outline, partner one-pager
 
 ## stage 4: matching

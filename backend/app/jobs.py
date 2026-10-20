@@ -8,9 +8,9 @@ import asyncio
 from sqlalchemy import select
 
 from .db import Session
-from .models import Job
+from .models import Job, Source
 from .ingest.forge import forge_name_for_url
-from .service import refresh_presets, resolve_forge_token, crawl_docsite_source, sync_repo_source
+from .service import refresh_presets, resolve_forge_token, crawl_docsite_source, sync_repo_source, resync_repo_source
 
 
 async def process_one(session) -> Job | None:
@@ -35,6 +35,17 @@ async def process_one(session) -> Job | None:
                 forge=row.payload.get("forge"),
             )
             row.progress = {"source_id": src.id}
+        elif row.kind == "resync_repo":
+            src = await session.get(Source, row.payload["source_id"])
+            token = await resolve_forge_token(session, row.user_id, src.forge, row.payload.get("token")) if src else None
+            new_src, summary = await resync_repo_source(
+                session,
+                row.payload["source_id"],
+                ref=row.payload.get("ref"),
+                token=token,
+                forge=row.payload.get("forge"),
+            )
+            row.progress = {"source_id": new_src.id, "change_summary": summary}
         elif row.kind == "crawl_docsite":
             src = await crawl_docsite_source(
                 session,

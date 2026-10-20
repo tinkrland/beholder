@@ -9,7 +9,7 @@ tags: **mvp** = in the first release, **later** = planned, **out** = never.
 - github repo, read-only **mvp**
 - live url crawl **later**
 - app store or product listing url **later**
-- re-sync on repo changes **later**
+- re-sync on repo changes **mvp**: POST /sources/{id}/resync re-walks the repo, records a new source (insert-only history), and stores a change summary: files added, removed, changed. the summary speaks files, not chunks, so a re-sliced file is not churn
 
 ## project model
 

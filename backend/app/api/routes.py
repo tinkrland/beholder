@@ -207,6 +207,34 @@ async def post_docsite_source(
     return {"job_id": job.id, "status": job.status}
 
 
+class ResyncIn(BaseModel):
+    ref: str | None = None
+    token: str | None = None
+    forge: str | None = None
+
+
+@router.post("/sources/{source_id}/resync")
+async def post_source_resync(
+    source_id: str,
+    body: "ResyncIn | None" = None,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """re-walk a repo source and record what changed: files added, removed,
+    changed. insert-only, so old facts keep their provenance."""
+    from ..models import Source
+
+    source = await session.get(Source, source_id)
+    if source is None:
+        raise HTTPException(404, "source not found")
+    await require_project_access(user, source.project_id, session)
+    payload = {"source_id": source_id}
+    if body is not None:
+        payload |= {"ref": body.ref, "token": body.token, "forge": body.forge}
+    job = await enqueue_job(session, "resync_repo", source.project_id, payload, user_id=user.id)
+    return {"job_id": job.id, "status": job.status}
+
+
 @router.post("/projects/{project_id}/sources/repo")
 async def post_repo_source(
     project_id: str,

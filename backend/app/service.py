@@ -232,6 +232,40 @@ async def sync_repo_source(session: AsyncSession, project_id: str, repo_url: str
     return source
 
 
+async def resync_repo_source(session: AsyncSession, source_id: str, ref: str | None = None, token: str | None = None, forge: str | None = None) -> tuple[Source, dict]:
+    """re-walk a repo source and record what changed. insert-only: the new
+    walk is a new source row, so old facts keep their provenance and the
+    change summary names what a reader of the repo would notice."""
+    from .ingest.changes import summarize_chunk_changes
+
+    source = await session.get(Source, source_id)
+    if source is None or source.kind != "repo":
+        raise ValueError("not a repo source")
+    result = walk_mod.walk_repo(source.url, ref or source.ref, forge=forge_for_url(source.url, token=token, override=forge or source.forge))
+    chunks, report = result["chunks"], result["report"]
+    # the diff base is the walk being re-synced: what this source said before
+    old_chunks = [
+        {"path": c.path, "text": c.text} for c in (await session.execute(select(SourceChunk).where(SourceChunk.source_id == source.id))).scalars()
+    ]
+    summary = summarize_chunk_changes(old_chunks, [{"path": c["path"], "text": c["text"]} for c in chunks])
+    new_source = Source(
+        project_id=source.project_id,
+        kind="repo",
+        forge=source.forge,
+        ref=ref or source.ref,
+        url=source.url,
+        commit_sha=report.get("commit_sha"),
+        content_hash=hashlib.sha256("\n".join(c["text"] for c in chunks).encode()).hexdigest(),
+        meta={"report": {k: v for k, v in report.items() if k != "skipped_excluded"} | {"skipped_excluded_count": len(report.get("skipped_excluded", []))}, "change_summary": summary},
+    )
+    session.add(new_source)
+    await session.flush()
+    for i, c in enumerate(chunks):
+        session.add(SourceChunk(source_id=new_source.id, idx=i, path=c["path"], lines_start=c["lines_start"], lines_end=c["lines_end"], text=c["text"], redacted=c.get("redacted", False)))
+    await session.commit()
+    return new_source, summary
+
+
 async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fact]:
     """static pass, structural pass, semantic pass, then an immutable model
     version. user-confirmed facts outrank inferred on re-extraction: the
