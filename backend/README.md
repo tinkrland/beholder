@@ -24,7 +24,7 @@ app/
   ingest/            forge adapters (github, gitlab, bitbucket, gitea, one
                      file each, self-hosted urls overridable), the rest walk,
                      doc-site crawls (gitbook, quartz), doc inputs (md/txt/
-                     json direct, pdf/docx via firecrawl), excludes, secret
+                     json direct, pdf/docx parsed locally with pypdf/python-docx), excludes, secret
                      redaction
   api/routes.py      thin routes: validate, call the service
   jobs.py            one queue, one worker type, job rows as progress

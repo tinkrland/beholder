@@ -42,7 +42,7 @@ auth is supabase auth (email magic link, github oauth). the client gets a jwt, t
 | api, workers, all logic | python (fastapi) | portable, testable, no host lock-in |
 | data, auth, storage | supabase postgres | plain sql, exportable, rls included |
 | all model calls | glm, through the gateway | keys in hand; structured output; one place for caching, retries, cost |
-| doc and url ingest | firecrawl | pdf, docx, urls to llm-ready markdown; doc-site crawls; scrape pricing and landing pages as evidence |
+| doc and url ingest | firecrawl | urls to llm-ready markdown; scrape pricing and landing pages as evidence. pdf and docx parse locally (pypdf, python-docx), no service needed |
 | lens research, preset refresh | tavily | fetch a target's public criteria, essays, application pages; diff sources for staleness |
 | walled or anti-bot sites | bright data | unlocker, metered fallback only when firecrawl is blocked |
 | fine-tuning (later) | adaptionlabs | fact extraction and claim binding are the repetitive structured tasks worth a trained model, once a few thousand labeled runs exist |
@@ -62,7 +62,7 @@ auth is supabase auth (email magic link, github oauth). the client gets a jwt, t
 
 ### docs and prose
 
-- formats: pdf, docx, txt, md, json, pasted text. firecrawl for pdf and docx; direct parse for md, txt, json
+- formats: pdf, docx, txt, md, json, pasted text. direct parse everywhere: pypdf and python-docx locally, no external service in the upload path; firecrawl stays for live url scraping
 - doc-site urls: gitbook, quartz, and similar wikis. crawl within the site root with a page budget, store each page as a url source
 - ocr for scanned pdfs later
 

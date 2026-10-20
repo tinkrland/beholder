@@ -68,6 +68,45 @@ async def test_crawl_stays_under_the_root_and_budget():
     assert not report["unread_budget"]
 
 
+def test_extract_links_skips_assets():
+    """the crawler walks pages, not css and js. assets burn budget and
+    pollute the failure report with non-pages."""
+    from app.ingest.html import extract_links
+
+    html = '<a href="/docs">docs</a><link href="/styles.css"/><script src="/app.js"></script>' \
+           '<a href="/logo.svg"/><a href="/docs/intro?v=1">intro</a>'
+    assert extract_links(html, "https://site.dev") == ["https://site.dev/docs", "https://site.dev/docs/intro?v=1"]
+
+
+async def test_crawl_reports_fetch_failures():
+    """a dead host must say so: visited 0 with no reason is a mystery,
+    visited 0 with fetch_failures is a map."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as client:
+        result = await crawl("https://dead.example", budget=3, client=client)
+    assert result["pages"] == []
+    assert result["report"]["visited"] == 0
+    assert result["report"]["fetch_failures"] == ["https://dead.example: status 503"]
+
+
+async def test_crawl_dedups_root_and_its_slash():
+    """https://site and https://site/ are one page, not two sources."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text='<a href="/">home</a><a href="/docs">docs</a>', headers={"content-type": "text/html"})
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as client:
+        result = await crawl("https://site.dev/", budget=4, client=client)
+    urls = [p["url"] for p in result["pages"]]
+    assert urls.count("https://site.dev") == 1
+    assert "https://site.dev/docs" in urls
+
+
 async def test_crawl_budget_reports_unread():
     async with httpx.AsyncClient(transport=_site_transport()) as client:
         result = await crawl("https://x.dev/docs/", budget=2, client=client)
@@ -100,10 +139,57 @@ def _firecrawl() -> FirecrawlClient:
     return FirecrawlClient(api_key="test-key", transport=httpx.MockTransport(handler))
 
 
-async def test_pdf_goes_through_firecrawl():
-    chunks = await parse_document("spec.pdf", content_b64=base64.b64encode(b"%PDF-fake").decode(), firecrawl=_firecrawl())
-    assert chunks[0]["kind"] == "doc"
-    assert "deterministic engine" in chunks[0]["text"]
+def _one_page_pdf(text: str) -> bytes:
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=12)
+    pdf.multi_cell(0, 8, text)
+    return pdf.output()
+
+
+async def test_pdf_parses_locally_with_page_provenance():
+    """no external service: pypdf runs where beholder runs, and the page
+    number survives into the chunk."""
+    raw = _one_page_pdf("the project ships a deterministic engine. " * 30)
+    chunks = await parse_document("spec.pdf", content_b64=base64.b64encode(raw).decode())
+    assert chunks and chunks[0]["kind"] == "doc"
+    assert chunks[0]["page"] == 1
+    assert any("deterministic engine" in c["text"] for c in chunks)
+
+
+async def test_two_page_pdf_cites_both_pages():
+    raw = _one_page_pdf("page one text. " + "filler line. " * 40)
+    from pypdf import PdfReader, PdfWriter
+
+    writer = PdfWriter()
+    r1 = PdfReader(__import__("io").BytesIO(raw))
+    for p in r1.pages:
+        writer.add_page(p)
+    writer.add_page(r1.pages[0])
+    buf = __import__("io").BytesIO()
+    writer.write(buf)
+    chunks = await parse_document("spec.pdf", content_b64=base64.b64encode(buf.getvalue()).decode())
+    assert {c["page"] for c in chunks} == {1, 2}
+
+
+async def test_docx_parses_locally():
+    import docx as docxlib
+
+    doc = docxlib.Document()
+    doc.add_paragraph("the studio renders product photos deterministically")
+    doc.add_paragraph("no diffusion model touches the product")
+    buf = __import__("io").BytesIO()
+    doc.save(buf)
+    chunks = await parse_document("brief.docx", content_b64=base64.b64encode(buf.getvalue()).decode())
+    assert chunks and chunks[0]["kind"] == "doc"
+    assert "deterministically" in chunks[0]["text"]
+
+
+async def test_broken_pdf_is_a_clean_rejection():
+    with pytest.raises(ValueError):
+        await parse_document("spec.pdf", content_b64=base64.b64encode(b"%PDF-not-a-real-file").decode())
 
 
 def test_firecrawl_without_key_is_honest():

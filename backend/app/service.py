@@ -102,7 +102,7 @@ async def add_doc_source(session: AsyncSession, project_id: str, filename: str, 
     session.add(source)
     await session.flush()
     for i, c in enumerate(cleaned):
-        session.add(SourceChunk(source_id=source.id, idx=i, path=filename, lines_start=c["lines_start"], lines_end=c["lines_end"], text=c["text"], kind="doc"))
+        session.add(SourceChunk(source_id=source.id, idx=i, path=filename, lines_start=c["lines_start"], lines_end=c["lines_end"], text=c["text"], kind="doc", page=c.get("page")))
     await session.commit()
     return source
 
@@ -251,6 +251,7 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
             "lines_end": c.lines_end or 0,
             "commit_sha": None,
             "kind": c.kind or "file",
+            "page": c.page,
         }
         for c, source in chunks
     ]

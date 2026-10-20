@@ -1,6 +1,7 @@
-"""firecrawl client, for pdf, docx, and url-to-markdown. one of two optional
-external services in beholder (tavily is the other), and always swappable:
-the client is transport-injectable, tests never touch the network."""
+"""firecrawl client, for live url-to-markdown. one of two optional external
+services in beholder (tavily is the other), and always swappable: the client
+is transport-injectable, tests never touch the network. pdf and docx uploads
+never reach this file: they parse locally, see ingest.docs."""
 
 import httpx
 
@@ -19,7 +20,7 @@ class FirecrawlClient:
         return self.api_key
 
     async def scrape_markdown(self, url: str) -> str:
-        """url or data uri in, markdown out. pdfs and docx pass as data uris."""
+        """url in, markdown out. for live pages a local parser cannot read."""
         key = self._require_key()
         async with httpx.AsyncClient(timeout=120, transport=self.transport) as client:
             r = await client.post(

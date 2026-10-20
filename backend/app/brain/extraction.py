@@ -58,8 +58,8 @@ def select_semantic_chunks(chunk_rows: list[dict], max_chunks: int) -> list[dict
     return picked
 
 
-def _prov(ref: str, lines: list[int] | None = None, sha: str | None = None, kind: str = "file") -> list[Provenance]:
-    return [Provenance(type=kind, ref=ref, lines=lines, commit_sha=sha)]
+def _prov(ref: str, lines: list[int] | None = None, sha: str | None = None, kind: str = "file", page: int | None = None) -> list[Provenance]:
+    return [Provenance(type=kind, ref=ref, lines=lines, page=page, commit_sha=sha)]
 
 
 def static_pass(chunks: list[dict]) -> list[FactIn]:
@@ -141,7 +141,7 @@ async def semantic_pass(chunks: list[dict], project_id: str, run: Runner, max_ch
     for c in chunks[:max_chunks]:
         out = await run(
             "extract_facts",
-            {"ref": c["path"], "lines_start": c.get("lines_start", 0), "lines_end": c.get("lines_end", 0), "text": c["text"]},
+            {"ref": c["path"], "lines_start": c.get("lines_start", 0), "lines_end": c.get("lines_end", 0), "page": c.get("page"), "text": c["text"]},
         )
         for f in out.get("facts", []):
             lines = f.get("lines") or [c.get("lines_start", 0), c.get("lines_end", 0)]
@@ -151,7 +151,7 @@ async def semantic_pass(chunks: list[dict], project_id: str, run: Runner, max_ch
                     kind=f.get("kind", "capability"),
                     statement=f.get("statement", "").strip(),
                     value=_normalize_value(f.get("value")),
-                    provenance=_prov(c["path"], lines, c.get("commit_sha"), c.get("kind", "file")),
+                    provenance=_prov(c["path"], lines, c.get("commit_sha"), c.get("kind", "file"), c.get("page")),
                     confidence=min(0.9, 0.4 + 0.1 * len(lines or [])),
                     status="inferred",
                 )

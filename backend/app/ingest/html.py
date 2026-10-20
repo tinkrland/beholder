@@ -9,6 +9,19 @@ _ENTITIES = {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'"
 
 _HREF = re.compile(r"""href\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 
+# a crawler walks pages, not assets: stylesheets, scripts, feeds, and
+# downloads are not links to follow.
+ASSET_SUFFIXES = (
+    ".css", ".js", ".mjs", ".map", ".xml", ".json", ".txt", ".webmanifest", ".svg",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".woff", ".woff2", ".ttf", ".otf",
+    ".eot", ".pdf", ".zip", ".gz", ".mp4", ".webm", ".rss", ".atom",
+)
+
+
+def _is_asset(url: str) -> bool:
+    path = url.split("?")[0].split("#")[0].lower()
+    return path.endswith(ASSET_SUFFIXES)
+
 
 def html_to_text(html: str) -> str:
     """scripts and styles are dropped, tags become spaces, entities decoded,
@@ -32,6 +45,8 @@ def extract_links(html: str, base_url: str) -> list[str]:
             continue
         absolute, _ = urldefrag(urljoin(base_url, href))
         if not absolute.startswith(("http://", "https://")):
+            continue
+        if _is_asset(absolute):
             continue
         if absolute not in seen:
             seen.add(absolute)
