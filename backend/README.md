@@ -36,7 +36,7 @@ rules the code keeps:
 
 - the brain is pure: every check is unit-testable with canned model outputs
 - model_version, score, pitch_view, export are immutable, insert-only
-- a draft lens never scores; confirmation includes every inferred weight
+- a draft lens never scores; confirmation echoes every criterion back (name and weight each) and the echo must match the lens: a review that never showed the numbers is not a review. drafts are editable via PUT /lenses/{id}; a weight the human changes stops being marked inferred
 - unbound sentences fail the render; export is blocked on honesty failures
 - provenance comes from the chunk, never from the model
 - the nine w's (thewframework/) are the extraction map: grounding reports

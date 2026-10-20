@@ -129,8 +129,28 @@ async def test_mvp_flow(client):
     r = await client.post(f"/api/targets/{target_id}/score")
     assert r.status_code == 409
 
-    # confirm the parse, then score
-    r = await client.post(f"/api/lenses/{lens['id']}/confirm")
+    # confirmation must echo the criteria: name and weight each, so the
+    # reviewer saw every inferred weight. a blind button is not a review.
+    r = await client.post(
+        f"/api/lenses/{lens['id']}/confirm",
+        json={"confirmed_criteria": [{"name": c["name"], "weight": c["weight"] - 0.1} for c in lens["criteria"]]},
+    )
+    assert r.status_code == 409  # the echo does not match the lens
+
+    # the review's edit half: fix the parse before confirming. the weights
+    # stay as parsed here: the score math below depends on them, and the
+    # weight flip is covered in its own test.
+    fixed = [dict(c) for c in lens["criteria"]]
+    fixed[0]["description"] = "sharpened by the reviewer: what actually matters"
+    r = await client.put(f"/api/lenses/{lens['id']}", json={"criteria": fixed})
+    assert r.status_code == 200, r.text
+    edited = r.json()
+    assert edited["criteria"][0]["description"] == "sharpened by the reviewer: what actually matters"
+
+    r = await client.post(
+        f"/api/lenses/{lens['id']}/confirm",
+        json={"confirmed_criteria": [{"name": c["name"], "weight": c["weight"]} for c in edited["criteria"]]},
+    )
     assert r.status_code == 200
     r = await client.post(f"/api/targets/{target_id}/score")
     assert r.status_code == 200, r.text

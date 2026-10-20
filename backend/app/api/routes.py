@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user, require_project_access
+from ..schemas import Criterion
 from ..db import get_session
 from ..gateway.runner import SimpleRunner
 from ..models import ClaimCheck, Gap, Job, Lens, Score, Target
@@ -92,6 +93,31 @@ class TargetIn(BaseModel):
     lens_id: str
     label: str
     deadline: date | None = None
+
+
+class LensEditIn(BaseModel):
+    """the review step's edit half: the human corrects the parse. only drafts
+    are editable: a confirmed lens is versioned, and a re-parse is a new lens.
+    weights must sum to 1.0, same as every authored preset."""
+
+    criteria: list[Criterion]
+    required_questions: list[str] | None = None
+    required_artifacts: list[str] | None = None
+    impresses: list[str] | None = None
+    red_flags: list[str] | None = None
+    alternatives_frame: str | None = None
+    trusted_evidence: list[str] | None = None
+    objection_seeds: list[str] | None = None
+    vocabulary: list[str] | None = None
+    output_formats: list[str] | None = None
+
+
+class LensConfirmIn(BaseModel):
+    """confirmation must echo the current criteria, name and weight for each.
+    the echo proves the reviewer read the weights, including the inferred
+    ones: a confirm button that never showed the numbers is not a review."""
+
+    confirmed_criteria: list[Criterion]
 
 
 class ClaimsIn(BaseModel):
@@ -398,14 +424,53 @@ async def get_lens(lens_id: str, user=Depends(get_current_user), session: AsyncS
     return lens_out(row).model_dump()
 
 
-@router.post("/lenses/{lens_id}/confirm")
-async def post_confirm_lens(lens_id: str, user=Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    """the mandatory review step: a draft lens never scores. confirmation means
-    a human has confirmed or edited the parse, including every inferred weight."""
+@router.put("/lenses/{lens_id}")
+async def put_lens(
+    lens_id: str,
+    body: LensEditIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """the review step's edit half: correct the parse before confirming.
+    only drafts are editable. a weight the human changes stops being marked
+    inferred: the marker tracks where the number came from, and now it came
+    from the human."""
+    from ..service import update_lens_draft
+
     row = await session.get(Lens, lens_id)
     if row is None:
         raise HTTPException(404, "lens not found")
-    row = await confirm_lens_row(session, row)
+    if row.owner_id is not None and row.owner_id != user.id:
+        raise HTTPException(403, "not your lens")
+    try:
+        row = await update_lens_draft(session, row, body)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    from ..service import lens_out
+
+    return lens_out(row).model_dump()
+
+
+@router.post("/lenses/{lens_id}/confirm")
+async def post_confirm_lens(
+    lens_id: str,
+    body: LensConfirmIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """the mandatory review step: a draft lens never scores. confirmation
+    echoes the current criteria back, name and weight each: the reviewer
+    saw every weight, including the inferred ones. an echo that does not
+    match is a 409, not a confirm."""
+    row = await session.get(Lens, lens_id)
+    if row is None:
+        raise HTTPException(404, "lens not found")
+    if row.owner_id is not None and row.owner_id != user.id:
+        raise HTTPException(403, "not your lens")
+    try:
+        row = await confirm_lens_row(session, row, [(c.name, c.weight) for c in body.confirmed_criteria])
+    except ValueError as e:
+        raise HTTPException(409, str(e))
     return {"id": row.id, "review_status": row.review_status}
 
 

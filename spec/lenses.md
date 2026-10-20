@@ -81,10 +81,11 @@ output_formats: [30-second pitch, application answers]
 1. user uploads pdf, doc, or a url
 2. beholder extracts criteria, weights, required questions, and stated priorities
 3. if weights are not stated, beholder proposes weights and marks them as inferred
-4. user reviews and edits the parse
-5. the lens is saved to the user's private library
+4. user reviews and edits the parse. editing a draft is the edit half of the review: a weight the human changes stops being marked inferred, because the marker records where the number came from. only drafts are editable: a confirmed lens has scores resting on it, and edits to it are a re-parse into a new lens
+5. the user confirms the parse. confirmation is the read half of the review: the client echoes every criterion back, name and weight each, and the echo must match the lens. an echo that does not match is a reject, never a silent confirm. a confirm button that never showed the numbers is not a review
+6. the lens is saved to the user's private library
 
-the review step matters: a wrong weight silently skews every score.
+the review step matters: a wrong weight silently skews every score, so the review is enforced, not requested: a draft lens never scores, and confirmation must prove the reviewer read the weights.
 
 ## subjective criteria
 

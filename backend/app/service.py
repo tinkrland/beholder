@@ -533,8 +533,56 @@ def lens_out(row: Lens) -> LensOut:
     )
 
 
-async def confirm_lens_row(session: AsyncSession, lens: Lens) -> Lens:
-    brain.lens_builder.confirm_lens(lens_out(lens))
+def _check_weights(criteria: list) -> None:
+    """the one rule every lens shares with every authored preset: weights sum
+    to 1.0. a wrong sum silently skews every score, so it is rejected here,
+    not smoothed."""
+    if not criteria:
+        raise ValueError("a lens with no criteria cannot be confirmed")
+    weights = sum(c.weight for c in criteria)
+    if abs(weights - 1.0) > 0.001:
+        raise ValueError(f"weights sum to {round(weights, 4)}, not 1.0")
+    if any(c.weight <= 0 for c in criteria):
+        raise ValueError("every criterion needs a positive weight")
+
+
+async def update_lens_draft(session: AsyncSession, lens: Lens, edit) -> Lens:
+    """the review step's edit half. only drafts are editable: a confirmed
+    lens has scores resting on it, and edits to it are a new version. a
+    weight the human changes stops being inferred: the marker records
+    where the number came from."""
+    if lens.review_status != "draft":
+        raise ValueError("only a draft lens is editable: re-parse into a new lens instead")
+    _check_weights(edit.criteria)
+    old_weights = {c["name"]: c["weight"] for c in lens.criteria}
+    for c in edit.criteria:
+        if old_weights.get(c.name) != c.weight:
+            c.inferred_weight = False  # the human set this one
+    lens.criteria = [c.model_dump() for c in edit.criteria]
+    for field in ("required_questions", "required_artifacts", "impresses", "red_flags", "alternatives_frame", "trusted_evidence", "objection_seeds", "vocabulary", "output_formats"):
+        v = getattr(edit, field)
+        if v is not None:
+            setattr(lens, field, v)
+    await session.commit()
+    return lens
+
+
+async def confirm_lens_row(session: AsyncSession, lens: Lens, echoed: list[tuple[str, float]]) -> Lens:
+    """the review step. confirmation must echo the current criteria, name and
+    weight each: the reviewer read the weights, including the inferred ones.
+    a mismatch is a reject, never a silent confirm."""
+    draft = lens_out(lens)
+    brain.lens_builder.confirm_lens(draft)
+    _check_weights(draft.criteria)
+    current = {c.name: round(c.weight, 6) for c in draft.criteria}
+    echoed = {name: round(weight, 6) for name, weight in echoed}
+    missing = sorted(set(current) - set(echoed))
+    if missing:
+        raise ValueError(f"confirmation must name every criterion with its current weight, missing: {missing}")
+    wrong = {name: (echoed[name], current[name]) for name in current if echoed[name] != current[name]}
+    if wrong:
+        detail = ", ".join(f"{name}: echoed {echoed[name]}, lens says {current[name]}" for name in sorted(wrong))
+        raise ValueError(f"the echoed weights do not match the lens, re-render and confirm what you reviewed: {detail}")
     lens.review_status = "confirmed"
     await session.commit()
     return lens
