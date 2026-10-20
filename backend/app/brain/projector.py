@@ -31,9 +31,14 @@ async def project(target_id: str, model_version_id: str, facts: list[FactOut], l
     dropped: list[dict] = []
 
     for skey in _SECTION_ORDER:
+        # each section sees only facts ranked relevant to its theme. one
+        # call per section with the whole corpus makes a thinking model
+        # outrun gateway timeouts and adds noise, not evidence.
+        theme = _SECTION_THEMES.get(skey, skey)
+        sel = relevant_facts(f"{theme} {' '.join(lens.vocabulary)} {lens.alternatives_frame or ''}", facts, lens, limit=32)
         out = await run(
             "generate_view",
-            {"section_key": skey, "lens": lens_blob, "facts": render_facts(facts)},
+            {"section_key": skey, "lens": lens_blob, "facts": render_facts(sel)},
         )
         sids: list[str] = []
         for text in out.get("sentences", []):
@@ -102,6 +107,18 @@ async def project(target_id: str, model_version_id: str, facts: list[FactOut], l
         view.annotations = [{"type": "dropped", "items": dropped}]  # type: ignore[attr-defined]
     return view
 
+
+_SECTION_THEMES = {
+    "one_liner": "what the project is, core capability, what it does",
+    "category_frame": "category, platform, market, positioning",
+    "problem_as_they_see_it": "user, problem, pain, audience",
+    "alternatives": "alternative, existing tools, comparison, without this",
+    "what_is_different": "differentiator, unique, mechanic, approach",
+    "proof": "demo, test, maturity, metric, working, shipped",
+    "objections_and_honest_answers": "constraint, limitation, roadmap, honest",
+    "what_not_to_lead_with": "weakness, unproven, unsupported, not ready",
+    "gaps": "missing, absent, unknown, not yet, no evidence",
+}
 
 _SECTION_ORDER = [
     "one_liner",

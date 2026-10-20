@@ -4,7 +4,7 @@ projector, extraction. no api, no db, no network: every model call is canned."""
 import pytest
 
 from app.brain import claims, extraction, honesty, lens_builder, projector, scorer
-from app.schemas import Criterion, FactOut, LensOut, PitchViewOut, Provenance, Section, Sentence
+from app.schemas import Criterion, FactIn, FactOut, LensOut, PitchViewOut, Provenance, Section, Sentence
 from conftest import FakeRun
 
 
@@ -330,3 +330,34 @@ def test_grounding_rejected_facts_do_not_ground():
     f = fact("f1", conf=0.9, status="rejected")
     report = grounding.ground([f])
     assert _dim(report, "what")["status"] == "silent"
+
+
+async def test_projector_sends_each_section_its_own_facts_not_the_corpus():
+    """one giant prompt per section outran the gateway on a real model. each
+    generate_view call must see only its ranked slice, never everything."""
+    import app.brain.projector as proj
+
+    seen = []
+
+    class RecordingRun:
+        async def __call__(self, task_id, payload):
+            if task_id == "generate_view":
+                seen.append(len(payload["facts"].split("\n")))
+                return {"sentences": []}
+            return {"bindings": []}
+
+    many = [
+        FactIn(
+            project_id="p",
+            kind="capability",
+            statement=f"fact number {i} about widgets and demos",
+            provenance=[Provenance(type="file", ref=f"file{i}.py", lines=[0, 1])],
+            confidence=0.7,
+        )
+        for i in range(120)
+    ]
+    outs = [FactOut(**f.model_dump(), id=f"f{i}", content_hash=f"h{i}") for i, f in enumerate(many)]
+    await proj.project("t1", "mv1", outs, lens(), RecordingRun())
+    assert len(seen) == 9, "one call per section"
+    assert all(n <= 32 for n in seen), f"section payloads too big: {seen}"
+    assert all(n > 0 for n in seen)
