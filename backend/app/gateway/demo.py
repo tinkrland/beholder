@@ -31,7 +31,7 @@ def demo_responder(spec, user_content: str) -> dict:
 
     if spec.task_id == "score_criterion":
         criterion = user_content.split("\n", 1)[0].removeprefix("criterion: ").strip()
-        fact_ids = re.findall(r"\[([0-9a-f-]{36})\]", user_content)
+        fact_ids = re.findall(r"\[([0-9a-f-]+)\]", user_content)
         if criterion.startswith("technical") and fact_ids:
             return {"score": 4, "reasoning": "demo: a deterministic engine is non-trivial", "fact_ids": [fact_ids[0]], "raise_by": "demo: benchmarks"}
         return {"score": 0, "reasoning": "demo: nothing supports this", "fact_ids": [], "raise_by": "demo: a demo video"}
@@ -52,7 +52,7 @@ def demo_responder(spec, user_content: str) -> dict:
         }
 
     if spec.task_id == "bind_sentences":
-        ids = re.findall(r"\[([0-9a-f-]{36})\]", user_content)
+        ids = re.findall(r"\[([0-9a-f-]+)\]", user_content)
         # one binding per sentence actually sent: the canned response
         # must round-trip the request's shape, not a fixed range
         count = len(re.findall(r"^\d+: ", user_content, re.M))

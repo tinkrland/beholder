@@ -229,6 +229,38 @@ async def test_projector_has_nine_sections():
     ]
 
 
+# ---------- retrieval: id resolution ----------
+from app.brain.retrieval import render_facts, resolve_fact_ids, short_id  # noqa: E402
+
+
+def test_short_id_is_eight_chars():
+    assert short_id("9c64d39e-cfab-4768-b8d4-c994ffd6601e") == "9c64d39e"
+    assert short_id("f1") == "f1"
+
+
+def test_render_facts_shows_short_ids():
+    rendered = render_facts([fact("9c64d39e-cfab-4768-b8d4-c994ffd6601e")])
+    assert rendered.startswith("[9c64d39e]")
+    assert "9c64d39e-cfab" not in rendered
+
+
+def test_resolve_accepts_full_short_and_mangled_ids():
+    f = fact("9c64d39e-cfab-4768-b8d4-c994ffd6601e")
+    assert resolve_fact_ids(["9c64d39e-cfab-4768-b8d4-c994ffd6601e"], [f]) == [f.id]
+    assert resolve_fact_ids(["9c64d39e"], [f]) == [f.id]  # the truncated copy
+    assert resolve_fact_ids(["9C64D39E"], [f]) == [f.id]  # case does not matter
+    assert resolve_fact_ids(["9c64d39e-c229"], [f]) == [f.id]  # mangled tail, same fact
+
+
+def test_resolve_drops_unknown_and_ambiguous_ids():
+    a = fact("9c64d39e-cfab-4768-b8d4-c994ffd6601e")
+    b = fact("9c64d39e-ffff-0000-0000-000000000000")
+    c = fact("aabbccdd-1111-2222-3333-444444444444")
+    assert resolve_fact_ids(["not-a-fact"], [a, c]) == []
+    assert resolve_fact_ids(["9c64d39e"], [a, b]) == []  # ambiguous prefix proves nothing
+    assert resolve_fact_ids(["aabbccdd", "not-a-fact", "aabbccdd"], [a, c]) == [c.id]  # deduped
+
+
 # ---------- extraction ----------
 
 def test_static_pass_reads_package_json():

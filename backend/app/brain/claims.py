@@ -5,6 +5,7 @@ do support."""
 
 import re
 
+from .retrieval import resolve_fact_ids
 from ..schemas import ClaimCheckOut, FactOut
 from .retrieval import render_facts
 
@@ -24,7 +25,7 @@ async def check_claims(pitch_text: str, facts: list[FactOut], run) -> list[Claim
     """one check per atomic claim. every non-supported claim gets a suggested
     rewrite that the facts support, or none if nothing supports the claim."""
     checks: list[ClaimCheckOut] = []
-    known_ids = {f.id for f in facts}
+    known = facts
     for claim in atomic_claims(pitch_text):
         out = await run("check_claims", {"claim": claim, "facts": render_facts(facts)})
         verdict = out.get("verdict", "unsupported")
@@ -36,7 +37,7 @@ async def check_claims(pitch_text: str, facts: list[FactOut], run) -> list[Claim
                 target_id="",
                 claim_text=claim,
                 verdict=verdict,
-                fact_ids=[f for f in out.get("fact_ids", []) if f in known_ids],
+                fact_ids=resolve_fact_ids(out.get("fact_ids", []), facts),
                 suggested_rewrite=out.get("suggested_rewrite"),
             )
         )

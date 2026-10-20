@@ -5,7 +5,7 @@ dropped at render, low-confidence bindings flagged for confirmation."""
 import hashlib
 
 from ..schemas import FactOut, LensOut, PitchViewOut, Section, Sentence
-from .retrieval import relevant_facts, render_facts
+from .retrieval import relevant_facts, render_facts, resolve_fact_ids
 from .honesty import CONFIRM_THRESHOLD
 
 
@@ -65,7 +65,7 @@ async def project(target_id: str, model_version_id: str, facts: list[FactOut], l
         sids: list[str] = []
         for i, text in enumerate(texts):
             b = bound_by_index.get(i, {})
-            fact_ids_bound = [f for f in b.get("fact_ids", []) if f in fact_ids]
+            fact_ids_bound = resolve_fact_ids(b.get("fact_ids", []), sel)
             crit_ids = [c for c in b.get("criterion_ids", []) if c in crit_names]
             if not fact_ids_bound and not crit_ids:
                 dropped.append({"section": skey, "text": text, "reason": "unbound"})

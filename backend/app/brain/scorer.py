@@ -2,7 +2,7 @@
 weighted total, confidence driven by fact confidence and evidence kinds."""
 
 from ..schemas import CriterionScore, FactOut, GapOut, LensOut, ScoreOut
-from .retrieval import relevant_facts, render_facts
+from .retrieval import resolve_fact_ids, relevant_facts, render_facts
 
 
 async def score_criterion(criterion, facts: list[FactOut], lens: LensOut, run) -> tuple[CriterionScore, GapOut | None]:

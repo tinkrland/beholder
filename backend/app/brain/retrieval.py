@@ -47,11 +47,43 @@ def relevant_facts(criterion_text: str, facts: list[FactOut], lens: LensOut, lim
     return ranked[:limit]
 
 
+def short_id(fid: str) -> str:
+    """the id a model sees and copies back: a short prefix of the fact id.
+    models truncate long uuids mid-copy, silently dropping the binding."""
+    return fid[:8]
+
+
+def resolve_fact_ids(candidates: list, facts: list[FactOut]) -> list[str]:
+    """model-returned ids are resolved back to real fact ids: exact match,
+    or a unique prefix match against what the prompt actually showed. an
+    ambiguous or unknown id resolves to nothing, so a sloppy model can
+    only lose support, never invent it. order kept, duplicates dropped."""
+    by_short: dict[str, list[str]] = {}
+    known = set()
+    for f in facts:
+        by_short.setdefault(f.id[:8], []).append(f.id)
+        known.add(f.id)
+    out: list[str] = []
+    for c in candidates:
+        c = str(c).strip().lower()
+        if not c:
+            continue
+        if c in known:
+            fid = c
+        else:
+            hits = by_short.get(c[:8], [])
+            fid = hits[0] if len(hits) == 1 else None
+        if fid and fid not in out:
+            out.append(fid)
+    return out
+
+
 def render_facts(facts: list[FactOut]) -> str:
-    """compact, line-addressable rendering for prompts."""
+    """compact, line-addressable rendering for prompts. ids are short on
+    purpose: models copy short ids faithfully and truncate long uuids."""
     lines = []
     for f in facts:
         prov = f.provenance[0] if f.provenance else None
         where = f"{prov.ref}:{prov.lines[0]}" if prov and prov.lines else (prov.ref if prov else "user")
-        lines.append(f"[{f.id}] ({f.kind}, {f.status}, conf {f.confidence:.2f}, {where}) {f.statement}")
+        lines.append(f"[{short_id(f.id)}] ({f.kind}, {f.status}, conf {f.confidence:.2f}, {where}) {f.statement}")
     return "\n".join(lines)

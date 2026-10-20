@@ -72,7 +72,7 @@ TASKS: dict[str, TaskSpec] = {
     ),
     "score_criterion": TaskSpec(
         task_id="score_criterion",
-        prompt_version="2",
+        prompt_version="3",
         system=(
             "you score one criterion of a lens against project facts. score 0 to 5. "
             "a fact from a more-trusted evidence kind counts for more. if no fact "
@@ -87,7 +87,7 @@ TASKS: dict[str, TaskSpec] = {
     ),
     "check_claims": TaskSpec(
         task_id="check_claims",
-        prompt_version="2",
+        prompt_version="3",
         system=(
             "you check one atomic claim from a user's pitch against project facts. "
             "verdict: supported, partial, unsupported, or contradicted. name the fact "
@@ -101,7 +101,7 @@ TASKS: dict[str, TaskSpec] = {
     ),
     "generate_view": TaskSpec(
         task_id="generate_view",
-        prompt_version="2",
+        prompt_version="3",
         system=(
             "you write one section of a pitch view for one reader. use only the facts "
             "provided and the lens framing. every sentence must rest on at least one "
@@ -129,12 +129,12 @@ TASKS: dict[str, TaskSpec] = {
     ),
     "bind_sentences": TaskSpec(
         task_id="bind_sentences",
-        prompt_version="2",
+        prompt_version="3",
         system=(
             "you bind sentences to facts. for each sentence, list the fact ids it "
             "rests on, or the lens criteria it talks about (about the audience, not "
-            "the project). a sentence resting on nothing is unbound: say so, do not "
-            "rescue it."
+            "the project). copy fact ids exactly as they appear in brackets. a "
+            "sentence resting on nothing is unbound: say so, do not rescue it."
         ),
         user_template="lens criteria: {criteria}\n\nfacts:\n{facts}\n\nsentences:\n{sentences}",
         out_format='{"bindings": [{"index": 0, "fact_ids": ["id"], "criterion_ids": ["criterion name"]}]}',
