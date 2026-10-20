@@ -289,8 +289,12 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
     await session.flush()
 
     sources = (await session.execute(select(Source).where(Source.project_id == project_id))).scalars().all()
+    previous = (
+        await session.execute(select(ModelVersion).where(ModelVersion.project_id == project_id).order_by(ModelVersion.created_at.desc()))
+    ).scalars().first()
     version = ModelVersion(
         project_id=project_id,
+        parent_id=previous.id if previous else None,
         fact_ids=[f.id for f in stored],
         source_hashes=[s.content_hash for s in sources],
     )
@@ -674,6 +678,48 @@ async def review_fact(session: AsyncSession, fact_id: str, status: str) -> tuple
     stale = await mark_views_stale(session, row.project_id)
     await session.commit()
     return row, stale
+
+
+async def list_model_versions(session: AsyncSession, project_id: str) -> list[dict]:
+    rows = (
+        await session.execute(select(ModelVersion).where(ModelVersion.project_id == project_id).order_by(ModelVersion.created_at.desc()))
+    ).scalars().all()
+    return [
+        {"id": r.id, "parent_id": r.parent_id, "created_at": r.created_at.isoformat(), "facts": len(r.fact_ids), "sources": len(r.source_hashes)}
+        for r in rows
+    ]
+
+
+async def diff_model_versions(session: AsyncSession, project_id: str, from_id: str | None, to_id: str | None) -> dict:
+    """what changed between two model versions. defaults: from = the latest
+    version's parent, to = the latest. facts are compared by content hash,
+    the identity that survives re-extraction."""
+    rows = (
+        await session.execute(select(ModelVersion).where(ModelVersion.project_id == project_id).order_by(ModelVersion.created_at.desc()))
+    ).scalars().all()
+    if not rows:
+        raise ValueError("no model versions: run extraction first")
+    to_row = await session.get(ModelVersion, to_id) if to_id else rows[0]
+    if to_row is None or to_row.project_id != project_id:
+        raise ValueError("model version not found")
+    from_row = await session.get(ModelVersion, from_id) if from_id else (await session.get(ModelVersion, to_row.parent_id) if to_row.parent_id else None)
+    if from_id and from_row is None:
+        raise ValueError("model version not found")
+
+    async def facts_of(row):
+        if row is None:
+            return []
+        got = (await session.execute(select(Fact).where(Fact.id.in_(row.fact_ids)))).scalars().all()
+        return [{"content_hash": f.content_hash, "statement": f.statement, "kind": f.kind, "status": f.status} for f in got]
+
+    return brain.versioning.diff_versions(
+        from_version=from_row.id if from_row else "",
+        to_version=to_row.id,
+        from_facts=await facts_of(from_row),
+        to_facts=await facts_of(to_row),
+        from_sources=from_row.source_hashes if from_row else [],
+        to_sources=to_row.source_hashes,
+    ).model_dump()
 
 
 async def score_target_rows(session: AsyncSession, target: Target, run) -> Score:

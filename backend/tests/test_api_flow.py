@@ -245,6 +245,24 @@ async def test_mvp_flow(client):
     r = await client.post(f"/api/targets/{target_id}/score")
     assert r.status_code == 200, r.text
 
+    # model versioning: re-extract with a new source, the diff names what
+    # changed. identity is the content hash, so re-derived facts are not
+    # churn, and review actions show as status changes.
+    r = await client.post(f"/api/projects/{project_id}/sources/text", json={"text": "beholder also runs on a self-hosted vps."})
+    assert r.status_code == 200, r.text
+    r = await client.post(f"/api/projects/{project_id}/extract")
+    assert r.status_code == 200, r.text
+    r = await client.get(f"/api/projects/{project_id}/model-versions")
+    assert r.status_code == 200, r.text
+    versions = r.json()
+    assert len(versions) >= 2
+    assert versions[0]["parent_id"] == versions[1]["id"]  # the chain points backwards
+    r = await client.get(f"/api/projects/{project_id}/model-versions/diff")
+    assert r.status_code == 200, r.text
+    diff = r.json()
+    assert set(diff) == {"from_version", "to_version", "facts_added", "facts_removed", "status_changes", "sources_added", "sources_removed"}
+    assert versions[0]["id"] in diff["to_version"]
+
 
 async def test_projects_of_others_do_not_exist_to_you(client):
     await client.post("/api/projects", json={"name": "mine"})

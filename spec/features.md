@@ -18,7 +18,7 @@ tags: **mvp** = in the first release, **later** = planned, **out** = never.
 - fact editor: confirm, reject, edit, add **mvp**
 - user-stated facts labeled as such and lower-trust by default **mvp**
 - fact kinds: capability, audience, pricing, platform, mechanic, maturity, differentiator, alternative, constraint, metric **mvp**
-- versioned model with diff between versions **later**
+- versioned model with diff between versions **mvp**: every extraction snapshots an immutable model version; GET /projects/{id}/model-versions/diff names facts added, facts removed, review actions (status changes), and sources added or removed. identity is the content hash, so re-derived facts are not churn
 
 ## targets and lenses
 

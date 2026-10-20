@@ -456,6 +456,40 @@ async def post_fact_review(
     return {"fact": fact_out(row).model_dump(), "stale_views": stale}
 
 
+@router.get("/projects/{project_id}/model-versions")
+async def get_model_versions(
+    project_id: str,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """every extraction snapshots an immutable model version. this lists
+    them, newest first, so the user can see history, not just the latest."""
+    await require_project_access(user, project_id, session)
+    from ..service import list_model_versions
+
+    return await list_model_versions(session, project_id)
+
+
+@router.get("/projects/{project_id}/model-versions/diff")
+async def get_model_version_diff(
+    project_id: str,
+    from_id: str | None = None,
+    to_id: str | None = None,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """what changed between two extractions: facts added, facts removed,
+    status changes (review actions), sources added and removed. facts are
+    compared by content hash, the identity that survives re-extraction."""
+    await require_project_access(user, project_id, session)
+    from ..service import diff_model_versions
+
+    try:
+        return await diff_model_versions(session, project_id, from_id, to_id)
+    except ValueError as e:
+        raise HTTPException(404 if "not found" in str(e) else 409, str(e))
+
+
 @router.post("/lenses/parse-rubric")
 async def post_parse_rubric(
     body: RubricIn,
