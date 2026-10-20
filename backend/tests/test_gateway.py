@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.gateway import MockProvider, cache_key, extract_json
+from app.gateway import TASKS, MockProvider, cache_key, effective_system, extract_json
 from app.gateway.runner import SimpleRunner
 
 
@@ -50,3 +50,12 @@ def test_mock_provider_without_responder_raises():
             return True
 
     assert asyncio.run(go())
+
+
+def test_every_task_declares_its_output_contract():
+    """a real model free-formats without a stated wire format: every task
+    must carry one, and the provider must append it to the system prompt."""
+    for task_id, spec in TASKS.items():
+        assert spec.out_format, f"{task_id} has no out_format"
+        assert "respond with only json" in effective_system(spec)
+        assert spec.prompt_version != "1", f"{task_id} prompt version must reflect the contract"

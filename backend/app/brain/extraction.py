@@ -8,6 +8,7 @@ every fact carries provenance. a fact with no provenance and not user-stated is
 not stored: the passes here cannot even express it.
 """
 
+from typing import Any
 import json
 
 from ..schemas import FactIn, Provenance
@@ -57,6 +58,17 @@ def static_pass(chunks: list[dict]) -> list[FactIn]:
     return facts
 
 
+def _normalize_value(v: Any) -> dict[str, Any] | None:
+    """facts store values as objects (measure, unit, label). a model that
+    returns a scalar or nothing must never crash the pass: wrap it or drop
+    it, never fail the extract."""
+    if isinstance(v, dict):
+        return v
+    if isinstance(v, (str, int, float, bool)) and str(v).strip():
+        return {"value": v}
+    return None
+
+
 def structural_pass(paths: list[str], commit_sha: str | None = None) -> list[FactIn]:
     """features and flows read from the repo shape. observed, not verified:
     the file existing is the evidence, and that is all the confidence claimed."""
@@ -96,7 +108,7 @@ async def semantic_pass(chunks: list[dict], project_id: str, run: Runner, max_ch
                     project_id=project_id,
                     kind=f.get("kind", "capability"),
                     statement=f.get("statement", "").strip(),
-                    value=f.get("value"),
+                    value=_normalize_value(f.get("value")),
                     provenance=_prov(c["path"], lines, c.get("commit_sha"), c.get("kind", "file")),
                     confidence=min(0.9, 0.4 + 0.1 * len(lines or [])),
                     status="inferred",

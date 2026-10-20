@@ -25,14 +25,14 @@ class TaskSpec:
     prompt_version: str
     system: str
     user_template: str
-    out_schema: type[BaseModel] | None = None
+    out_format: str = ""
     temperature: float = 0.2
 
 
 TASKS: dict[str, TaskSpec] = {
     "extract_facts": TaskSpec(
         task_id="extract_facts",
-        prompt_version="1",
+        prompt_version="3",
         system=(
             "you extract facts from project sources. every fact must be supported by "
             "the text you were given. never invent details. each fact carries the "
@@ -41,10 +41,11 @@ TASKS: dict[str, TaskSpec] = {
             "constraint, metric."
         ),
         user_template="source: {ref}\nlines {lines_start}-{lines_end}\n\n{text}",
+        out_format='{"facts": [{"kind": "capability|audience|pricing|platform|mechanic|maturity|differentiator|alternative|constraint|metric", "statement": "one thing the text supports", "value": {"value": "0.1.0", "unit": "optional"} or null, "lines": [start_line, end_line]}]}',
     ),
     "parse_rubric": TaskSpec(
         task_id="parse_rubric",
-        prompt_version="1",
+        prompt_version="2",
         system=(
             "you parse judging rubrics and calls for proposals. extract criteria, "
             "weights, required questions, required artifacts, stated priorities, "
@@ -54,10 +55,11 @@ TASKS: dict[str, TaskSpec] = {
             "wrong weights silently skew every score."
         ),
         user_template="rubric source: {source}\n\n{text}",
+        out_format='{"name": "rubric name", "criteria": [{"name": "criterion", "weight": 0.3, "description": "what strong looks like", "strong_answer": "optional", "subjective": false, "inferred_weight": false}], "required_questions": ["question"], "required_artifacts": ["artifact"], "impresses": ["what impresses this reader"], "red_flags": ["what this reader distrusts"], "trusted_evidence": ["evidence kinds this reader trusts"]}',
     ),
     "draft_lens": TaskSpec(
         task_id="draft_lens",
-        prompt_version="1",
+        prompt_version="2",
         system=(
             "you draft a lens from a plain-language description of a reader. criteria "
             "come from the description; equal weights, all marked inferred_weight true. "
@@ -65,10 +67,11 @@ TASKS: dict[str, TaskSpec] = {
             "the first render."
         ),
         user_template="reader description: {description}",
+        out_format='{"name": "lens name", "criteria": [{"name": "criterion", "description": "what strong looks like"}], "impresses": ["what impresses this reader"]}',
     ),
     "score_criterion": TaskSpec(
         task_id="score_criterion",
-        prompt_version="1",
+        prompt_version="2",
         system=(
             "you score one criterion of a lens against project facts. score 0 to 5. "
             "a fact from a more-trusted evidence kind counts for more. if no fact "
@@ -78,11 +81,12 @@ TASKS: dict[str, TaskSpec] = {
             "advisory judgments, not measurements: never present them otherwise."
         ),
         user_template="criterion: {criterion}\nlens strong answer: {strong_answer}\n\nfacts:\n{facts}",
+        out_format='{"score": 0.0, "range": [0.0, 1.0], "reasoning": "which fact ids and why", "fact_ids": ["id"], "raise_by": "what evidence would raise the score"}',
         temperature=0.0,
     ),
     "check_claims": TaskSpec(
         task_id="check_claims",
-        prompt_version="1",
+        prompt_version="2",
         system=(
             "you check one atomic claim from a user's pitch against project facts. "
             "verdict: supported, partial, unsupported, or contradicted. name the fact "
@@ -91,11 +95,12 @@ TASKS: dict[str, TaskSpec] = {
             "close the gap."
         ),
         user_template="claim: {claim}\n\nfacts:\n{facts}",
+        out_format='{"verdict": "supported|partial|unsupported|contradicted", "fact_ids": ["id"], "suggested_rewrite": "only for verdicts other than supported"}',
         temperature=0.0,
     ),
     "generate_view": TaskSpec(
         task_id="generate_view",
-        prompt_version="1",
+        prompt_version="2",
         system=(
             "you write one section of a pitch view for one reader. use only the facts "
             "provided and the lens framing. every sentence must rest on at least one "
@@ -104,10 +109,11 @@ TASKS: dict[str, TaskSpec] = {
             "metrics that are not in the facts."
         ),
         user_template="section: {section_key}\nlens framing:\n{lens}\n\nfacts:\n{facts}",
+        out_format='{"sentences": ["sentence one.", "sentence two."]}',
     ),
     "check_consistency": TaskSpec(
         task_id="check_consistency",
-        prompt_version="1",
+        prompt_version="2",
         system=(
             "you compare sentences that one project says to two different readers. "
             "two sentences contradict when they cannot both be true of the same "
@@ -118,10 +124,11 @@ TASKS: dict[str, TaskSpec] = {
             "unrelated. never invent a contradiction: when unsure, unrelated."
         ),
         user_template="views:\n{views}\n\npairs:\n{pairs}",
+        out_format='{"verdicts": [{"verdict": "consistent|contradiction|unrelated", "explanation": "required for contradiction: why both cannot be true"}]}',
     ),
     "bind_sentences": TaskSpec(
         task_id="bind_sentences",
-        prompt_version="1",
+        prompt_version="2",
         system=(
             "you bind sentences to facts. for each sentence, list the fact ids it "
             "rests on, or the lens criteria it talks about (about the audience, not "
@@ -129,6 +136,7 @@ TASKS: dict[str, TaskSpec] = {
             "rescue it."
         ),
         user_template="lens criteria: {criteria}\n\nfacts:\n{facts}\n\nsentences:\n{sentences}",
+        out_format='{"bindings": [{"index": 0, "fact_ids": ["id"], "criterion_ids": ["criterion name"]}]}',
         temperature=0.0,
     ),
 }
@@ -157,15 +165,17 @@ class GlmProvider:
         body = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": spec.system},
+                {"role": "system", "content": effective_system(spec)},
                 {"role": "user", "content": user_content},
             ],
             "temperature": spec.temperature,
         }
         last_error: Exception | None = None
+        # a thinking model on a big composite payload (pitch, consistency)
+        # regularly runs past two minutes. the socket must outlive it.
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=120) as client:
+                async with httpx.AsyncClient(timeout=600) as client:
                     r = await client.post(
                         f"{self.base_url}/chat/completions",
                         json=body,
@@ -183,7 +193,7 @@ class GlmProvider:
                 }
             except Exception as e:  # noqa: ble001 - retries then raises
                 last_error = e
-        raise RuntimeError(f"gateway provider failed after retries: {last_error}")
+        raise RuntimeError(f"gateway provider failed after retries: {last_error!r}")
 
 
 @dataclass
@@ -203,6 +213,19 @@ class MockProvider:
         if isinstance(out, dict) and "content" not in out:
             out = {"content": out if isinstance(out, str) else json.dumps(out), "in_tokens": 1, "out_tokens": 1, "model": "mock"}
         return out
+
+
+def effective_system(spec: TaskSpec) -> str:
+    """judgment lives in the prompt; the machine contract is appended here so
+    every provider sends the same wire format. without it a real model
+    free-forms and json parsing dies."""
+    if not spec.out_format:
+        return spec.system
+    return (
+        f"{spec.system}\n\n"
+        "respond with only json, no prose before or after, in exactly this shape:\n"
+        f"{spec.out_format}"
+    )
 
 
 def extract_json(content: str) -> Any:

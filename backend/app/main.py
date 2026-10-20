@@ -10,16 +10,21 @@ from .db import Base, engine
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if settings.inline_worker:
-        from .jobs import start_inline_worker
-
-        task = start_inline_worker()
+    task = None
     # dev convenience: create tables on startup. production runs alembic.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    # the worker starts after the tables exist: a fresh database must not
+    # race its own queue into a missing table
+    if settings.inline_worker:
+        from .jobs import start_inline_worker
+
+        task = start_inline_worker()
+
     # authored presets sync into the lenses table at startup: a data file
     # change is a version bump, not a deploy step
+    from .db import Session
     from .service import ensure_presets
 
     async with Session() as session:

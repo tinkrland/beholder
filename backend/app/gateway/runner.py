@@ -21,12 +21,12 @@ class Gateway:
         self.provider = provider or self._default_provider()
 
     def _default_provider(self):
-        if settings.gateway_provider == "demo":
+        # "mock" and "demo" are the same thing: a local run without model keys
+        # still exercises the whole flow with obviously canned outputs
+        if settings.gateway_provider in ("mock", "demo"):
             from .demo import demo_responder
 
             return MockProvider(responder=demo_responder)
-        if settings.gateway_provider == "mock":
-            return MockProvider()
         return GlmProvider()
 
     async def run(self, task_id: str, payload: dict[str, Any]) -> dict[str, Any]:

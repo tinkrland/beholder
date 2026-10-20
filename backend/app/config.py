@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     glm_base_url: str = "https://api.z.ai/api/paas/v4"
     glm_model: str = "glm-4.6"
 
-    # provider for the gateway: "glm" or "mock" (tests, local runs without keys)
+    # provider for the gateway: "glm", or "mock"/"demo" for local runs
+    # without keys (canned outputs that exercise the whole flow)
     gateway_provider: str = "glm"
 
     # forge urls: gitlab and gitea are usually self-hosted, github and
