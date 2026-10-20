@@ -28,10 +28,10 @@
 
 ## stage 4: matching
 
-- rank the targets a user uploads by fit
-- suggest targets from the library
-- discovery of newly opened calls that fit
-- requires a maintained database of calls, deadlines, and eligibility
+- rank the scored targets by fit (done, oct 20 2026: GET /projects/{id}/matching, fit comes only from scores on the table)
+- suggest library presets by readiness (done: criteria x grounding, silence named, no invented fit)
+- discovery of newly opened calls that fit (open)
+- requires a maintained database of calls, deadlines, and eligibility (open)
 
 ## stage 5: library network effects
 

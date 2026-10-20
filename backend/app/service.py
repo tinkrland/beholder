@@ -441,6 +441,42 @@ async def grounding_for_project(session: AsyncSession, project_id: str) -> dict:
     return brain.grounding.ground(facts)
 
 
+async def matching_for_project(session: AsyncSession, project_id: str) -> dict:
+    """the matching report: scored targets ranked by fit, library presets
+    suggested by readiness, unscored targets named. no model calls: the
+    report is arithmetic over scores and grounding."""
+    targets = (await session.execute(select(Target).where(Target.project_id == project_id).order_by(Target.created_at))).scalars().all()
+    scored: list[dict] = []
+    unscored: list[dict] = []
+    for t in targets:
+        score_row = (
+            await session.execute(select(Score).where(Score.target_id == t.id).order_by(Score.created_at.desc()))
+        ).scalars().first()
+        if score_row is None:
+            unscored.append({"target_id": t.id, "label": t.label})
+            continue
+        gap_rows = (await session.execute(select(Gap).where(Gap.target_id == t.id).order_by(Gap.created_at.desc()))).scalars().all()
+        top_gap = None
+        if gap_rows:
+            best = max(gap_rows, key=lambda g: g.weight)
+            top_gap = {"criterion": best.criterion, "weight": best.weight, "missing": best.missing, "would_close": best.would_close}
+        scored.append(
+            {
+                "target_id": t.id,
+                "label": t.label,
+                "lens_id": t.lens_id,
+                "deadline": t.deadline.isoformat() if t.deadline else None,
+                "weighted_total": score_row.weighted_total,
+                "confidence": score_row.confidence,
+                "top_gap": top_gap,
+            }
+        )
+    grounding = await grounding_for_project(session, project_id)
+    preset_lens = (await session.execute(select(Lens).where(Target.project_id == project_id, Lens.id == Target.lens_id, Lens.type == "preset"))).scalars().all()
+    attached_keys = {row.name for row in preset_lens}
+    return brain.matching.match(scored, load_presets(), grounding, attached_keys, unscored)
+
+
 async def list_facts(session: AsyncSession, project_id: str) -> list[Fact]:
     return (await session.execute(select(Fact).where(Fact.project_id == project_id).order_by(Fact.kind))).scalars().all()
 

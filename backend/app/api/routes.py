@@ -320,6 +320,20 @@ async def get_grounding(
     return await grounding_for_project(session, project_id)
 
 
+@router.get("/projects/{project_id}/matching")
+async def get_matching(
+    project_id: str,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """rank the scored targets, suggest library presets by readiness. no
+    model calls: fit comes only from scores on the table."""
+    await require_project_access(user, project_id, session)
+    from ..service import matching_for_project
+
+    return await matching_for_project(session, project_id)
+
+
 @router.post("/projects/{project_id}/extract")
 async def post_extract(
     project_id: str,

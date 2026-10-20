@@ -166,6 +166,19 @@ async def test_mvp_flow(client):
     assert report["consistent"] is True  # the mock gateway votes consistent
     assert report["contradictions"] == []
 
+    # matching: scored targets rank, presets suggest by readiness, nothing invents fit
+    r = await client.get(f"/api/projects/{project_id}/matching")
+    assert r.status_code == 200, r.text
+    matching = r.json()
+    assert {t["target_id"] for t in matching["ranked"]} == {target_id, preset_target["target_id"]}
+    assert all("top_gap" in t for t in matching["ranked"])
+    ranked_ids = [t["target_id"] for t in matching["ranked"]]
+    expected = [t["target_id"] for t in sorted(matching["ranked"], key=lambda t: (-t["weighted_total"], -t["confidence"], t["label"]))]
+    assert ranked_ids == expected  # order is deterministic: same input, same rank
+    assert all(t["key"] != "yc_application" for t in matching["suggestions"])  # attached presets are never suggested
+    assert all(t["note"] for t in matching["suggestions"])
+    assert matching["not_scored"] == []  # both targets have scores on the table
+
     # overclaim check on the user's own pitch language
     r = await client.post(f"/api/targets/{target_id}/check-claims", json={"pitch_text": "the engine never cracks and it scales to millions of users."})
     assert r.status_code == 200, r.text

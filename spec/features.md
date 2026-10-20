@@ -77,9 +77,9 @@ nine fixed sections, the same for every target so views compare side by side:
 
 ## matching
 
-- rank the targets the user uploads by fit **later**
-- suggest targets from the library **later**
-- surface newly opened calls that fit **later**
+- rank the scored targets by fit **mvp**: weighted total first, confidence breaks ties, the top gap rides along
+- suggest library presets by readiness **mvp**: how many criteria touch dimensions the project can already speak to, which would land on silence. readiness is not fit: the honest number comes when the score runs
+- surface newly opened calls that fit **later**: needs a maintained database of calls, deadlines, and eligibility
 
 ## out
 
