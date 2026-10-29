@@ -60,9 +60,11 @@ nine fixed sections, the same for every target so views compare side by side:
 - 30-second pitch **mvp**
 - written application answers mapped to the rubric's own fields **mvp**
 - markdown and pdf brief **mvp**
-- 2-minute demo script **later**
-- deck outline **later**
-- one-pager for partners **later**
+- 2-minute demo script **mvp**: the view's sentences in spoken order, one beat per section, verbatim
+- deck outline **mvp**: title slide plus one slide per section, sentences as bullets
+- one-pager for partners **mvp**: plain section labels, the partner reader on one page
+
+a format rearranges the honest sentences; it never rewrites them. new prose would be ungrounded by construction, so every format carries the same guarded sentences in a different shape, and an unknown format is a 400 naming the known ones.
 
 ## comparison
 

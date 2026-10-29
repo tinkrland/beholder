@@ -623,6 +623,7 @@ async def post_score(target_id: str, user=Depends(get_current_user), session: As
     target = await session.get(Target, target_id)
     if target is None:
         raise HTTPException(404, "target not found")
+    await require_project_access(user, target.project_id, session)
     try:
         row = await score_target_rows(session, target, runner(session))
     except ValueError as e:
@@ -639,6 +640,10 @@ async def post_score(target_id: str, user=Depends(get_current_user), session: As
 
 @router.get("/targets/{target_id}/gaps")
 async def get_gaps(target_id: str, user=Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    target = await session.get(Target, target_id)
+    if target is None:
+        raise HTTPException(404, "target not found")
+    await require_project_access(user, target.project_id, session)
     rows = (await session.execute(select(Gap).where(Gap.target_id == target_id))).scalars().all()
     return [{"criterion": g.criterion, "weight": g.weight, "missing": g.missing, "would_close": g.would_close} for g in rows]
 
@@ -648,6 +653,7 @@ async def post_pitch(target_id: str, user=Depends(get_current_user), session: As
     target = await session.get(Target, target_id)
     if target is None:
         raise HTTPException(404, "target not found")
+    await require_project_access(user, target.project_id, session)
     row = await generate_view_row(session, target, runner(session))
     return {
         "id": row.id,
@@ -667,6 +673,7 @@ async def post_claims(
     target = await session.get(Target, target_id)
     if target is None:
         raise HTTPException(404, "target not found")
+    await require_project_access(user, target.project_id, session)
     rows = await check_claims_rows(session, target, body.pitch_text, runner(session))
     return [
         {"claim": c.claim_text, "verdict": c.verdict, "fact_ids": c.fact_ids, "rewrite": c.suggested_rewrite}
@@ -681,8 +688,19 @@ async def post_export(
     user=Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    from ..brain import formats as brain_formats
+    from ..models import PitchView, Target as TargetRow
     from ..service import export_view_row
 
+    if body.format_id not in brain_formats.FORMATS:
+        raise HTTPException(400, f"unknown format: {body.format_id}. known: {', '.join(brain_formats.FORMATS)}")
+    view = await session.get(PitchView, view_id)
+    if view is None:
+        raise HTTPException(404, "view not found")
+    target = await session.get(TargetRow, view.target_id)
+    if target is None:
+        raise HTTPException(404, "target not found")
+    await require_project_access(user, target.project_id, session)
     try:
         row = await export_view_row(session, view_id, body.format_id, body.confirmed_fact_ids)
     except PermissionError as e:
@@ -697,4 +715,5 @@ async def get_job(job_id: str, user=Depends(get_current_user), session: AsyncSes
     row = await session.get(Job, job_id)
     if row is None:
         raise HTTPException(404, "job not found")
+    await require_project_access(user, row.project_id, session)
     return {"id": row.id, "kind": row.kind, "status": row.status, "progress": row.progress, "error": row.error}

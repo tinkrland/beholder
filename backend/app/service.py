@@ -836,12 +836,8 @@ async def export_view_row(session: AsyncSession, view_id: str, format_id: str, c
     report = brain.honesty.can_export(view, facts, confirmed_fact_ids)
     if not report.exportable:
         raise PermissionError("export blocked: " + "; ".join(report.blocking))
-    body = "\n\n".join(
-        f"## {section.key}\n"
-        + "\n".join(next(x.text for x in view.sentences if x.id == sid) for sid in section.sentence_ids)
-        for section in view.sections
-        if section.sentence_ids
-    )
+    label = target.label if target else ""
+    body = brain.formats.render(view, format_id, label=label)
     row = Export(view_id=view_id, format_id=format_id, body=body, confirmed_unsupported=confirmed_fact_ids)
     session.add(row)
     await session.commit()

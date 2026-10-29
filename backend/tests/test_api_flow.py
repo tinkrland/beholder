@@ -123,6 +123,7 @@ async def test_mvp_flow(client):
 
     # target
     r = await client.post(f"/api/projects/{project_id}/targets", json={"lens_id": lens["id"], "label": "hackathon x, main track"})
+    assert r.status_code == 200, r.text
     target_id = r.json()["id"]
 
     # a draft lens never scores
@@ -215,6 +216,20 @@ async def test_mvp_flow(client):
     assert r.status_code == 200, r.text
     assert "## one_liner" in r.json()["body"]
 
+    # more formats: the same honest sentences, rearranged for the moment.
+    # an unknown format is a 400 naming what is known.
+    r = await client.post(f"/api/views/{view['id']}/export", json={"format_id": "carrier_pigeon"})
+    assert r.status_code == 400
+    assert "demo_script" in r.json()["detail"]
+    for fmt, marker in [
+        ("demo_script", "demo script for"),
+        ("deck_outline", "deck"),
+        ("partner_one_pager", "one-pager"),
+    ]:
+        r = await client.post(f"/api/views/{view['id']}/export", json={"format_id": fmt, "confirmed_fact_ids": fact_ids})
+        assert r.status_code == 200, r.text
+        assert marker in r.json()["body"]
+
     # the fact editor: add a user-stated fact, edit an extracted one, reject
     # a third. views that rested on the old fact set are flagged stale, and
     # a rejected fact never feeds the model again.
@@ -265,8 +280,34 @@ async def test_mvp_flow(client):
 
 
 async def test_projects_of_others_do_not_exist_to_you(client):
-    await client.post("/api/projects", json={"name": "mine"})
+    r = await client.post("/api/projects", json={"name": "mine"})
+    project_id = r.json()["id"]
     # a second caller with a different dev identity
-    other = client
-    r = await other.get("/api/projects/demo-not-real/facts")
+    other = {"headers": {"authorization": "bearer someone-else"}}
+    r = await client.get("/api/projects/demo-not-real/facts", headers=other["headers"])
     assert r.status_code == 404  # cannot see what is not yours
+    r = await client.get(f"/api/projects/{project_id}/facts", headers=other["headers"])
+    assert r.status_code == 404  # a real project of someone else is the same 404
+
+    # the per-id routes resolve the project before acting: a stranger cannot
+    # score, pitch, read gaps, or export what is not theirs. it is a 404,
+    # not a 403: what they cannot see does not exist to them.
+    r = await client.post(f"/api/projects/{project_id}/sources/text", json={"text": "a tool that scores projects."})
+    await client.post(f"/api/projects/{project_id}/extract")
+    preset = (await client.get("/api/presets")).json()
+    r = await client.post(
+        f"/api/projects/{project_id}/targets/from-preset",
+        json={"preset_key": preset[0]["key"], "label": "hackathon"},
+    )
+    assert r.status_code == 200, r.text
+    target_id = r.json()["target_id"]
+    for path in [f"/api/targets/{target_id}/gaps"]:
+        r = await client.get(path, headers=other["headers"])
+        assert r.status_code == 404
+    for path in [f"/api/targets/{target_id}/score", f"/api/targets/{target_id}/pitch", f"/api/targets/{target_id}/check-claims"]:
+        r = await client.post(path, json={"pitch_text": "x"} if "check-claims" in path else None, headers=other["headers"])
+        assert r.status_code == 404, (path, r.status_code)
+    r = await client.post(f"/api/projects/{project_id}/sources/repo", json={"repo_url": "https://github.com/o/r"})
+    job_id = r.json()["job_id"]
+    r = await client.get(f"/api/jobs/{job_id}", headers=other["headers"])
+    assert r.status_code == 404

@@ -38,6 +38,8 @@ rules the code keeps:
 - model_version, score, pitch_view, export are immutable, insert-only
 - a draft lens never scores; confirmation echoes every criterion back (name and weight each) and the echo must match the lens: a review that never showed the numbers is not a review. drafts are editable via PUT /lenses/{id}; a weight the human changes stops being marked inferred
 - unbound sentences fail the render; export is blocked on honesty failures
+- every project-scoped route checks membership before acting: targets, gaps, pitch, claims, exports, and jobs resolve their project and 404 for strangers, never 403
+- export formats: markdown, demo script, deck outline, partner one-pager. all four render the same guarded sentences rearranged; unknown formats are a 400
 - repo re-sync: POST /sources/{id}/resync re-walks a repo source, inserts a new source row (history is insert-only, old facts keep their provenance), and stores what changed in meta.change_summary (files added, removed, changed)
 - model versioning: every extraction snapshots an immutable model version with a parent chain; GET /projects/{id}/model-versions/diff names what changed between two extractions (facts by content hash, review actions as status changes, sources by hash)
 - fact editor over http: POST /projects/{id}/facts (user-stated, confirmed by authorship), PUT /facts/{id} (edit), POST /facts/{id}/review (confirm or reject); any fact change flags the project's views stale, rejected facts never feed the model
