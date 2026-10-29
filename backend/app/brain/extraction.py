@@ -58,8 +58,18 @@ def select_semantic_chunks(chunk_rows: list[dict], max_chunks: int) -> list[dict
     return picked
 
 
-def _prov(ref: str, lines: list[int] | None = None, sha: str | None = None, kind: str = "file", page: int | None = None) -> list[Provenance]:
-    return [Provenance(type=kind, ref=ref, lines=lines, page=page, commit_sha=sha)]
+def _prov(
+    ref: str,
+    lines: list[int] | None = None,
+    sha: str | None = None,
+    kind: str = "file",
+    page: int | None = None,
+    forge: str | None = None,
+    repo_id: str | None = None,
+) -> list[Provenance]:
+    """provenance worth the name: a repo citation pins the commit too, so the
+    evidence names the exact code that was read, not the code as it is today."""
+    return [Provenance(type=kind, ref=ref, lines=lines, page=page, commit_sha=sha, forge=forge, repo_id=repo_id)]
 
 
 def static_pass(chunks: list[dict]) -> list[FactIn]:
@@ -111,25 +121,32 @@ def _normalize_value(v: Any) -> dict[str, Any] | None:
     return None
 
 
-def structural_pass(paths: list[str], commit_sha: str | None = None) -> list[FactIn]:
+def structural_pass(
+    paths: list[str],
+    commit_sha: str | None = None,
+    forge: str | None = None,
+    repo_id: str | None = None,
+) -> list[FactIn]:
     """features and flows read from the repo shape. observed, not verified:
-    the file existing is the evidence, and that is all the confidence claimed."""
+    the file existing is the evidence, and that is all the confidence claimed.
+    tree-level evidence still pins the commit it was read at."""
     facts: list[FactIn] = []
     p = [x.lower() for x in paths]
+    tree = _prov("repo tree", sha=commit_sha, forge=forge, repo_id=repo_id)
 
     def has(*needles: str) -> list[str]:
         return [x for x in p for n in needles if n in x]
 
     if has("/api/", "routes/", "router"):
-        facts.append(FactIn(project_id="", kind="capability", statement="an api surface exists in the repo (file evidence)", provenance=_prov("repo tree"), confidence=0.6))
+        facts.append(FactIn(project_id="", kind="capability", statement="an api surface exists in the repo (file evidence)", provenance=tree, confidence=0.6))
     if has("auth", "login", "signin"):
-        facts.append(FactIn(project_id="", kind="capability", statement="an authentication flow exists in the repo (file evidence)", provenance=_prov("repo tree"), confidence=0.6))
+        facts.append(FactIn(project_id="", kind="capability", statement="an authentication flow exists in the repo (file evidence)", provenance=tree, confidence=0.6))
     if has("/tests/", "_test.", "test_"):
-        facts.append(FactIn(project_id="", kind="maturity", statement="tests exist in the repo (file evidence)", provenance=_prov("repo tree"), confidence=0.6))
+        facts.append(FactIn(project_id="", kind="maturity", statement="tests exist in the repo (file evidence)", provenance=tree, confidence=0.6))
     if has("/docs/", "readme", "/.github"):
-        facts.append(FactIn(project_id="", kind="maturity", statement="documentation exists in the repo (file evidence)", provenance=_prov("repo tree"), confidence=0.6))
+        facts.append(FactIn(project_id="", kind="maturity", statement="documentation exists in the repo (file evidence)", provenance=tree, confidence=0.6))
     if has("migrations/", "alembic", "schema"):
-        facts.append(FactIn(project_id="", kind="mechanic", statement="a database schema with migrations exists (file evidence)", provenance=_prov("repo tree"), confidence=0.6))
+        facts.append(FactIn(project_id="", kind="mechanic", statement="a database schema with migrations exists (file evidence)", provenance=tree, confidence=0.6))
     return facts
 
 
@@ -151,7 +168,15 @@ async def semantic_pass(chunks: list[dict], project_id: str, run: Runner, max_ch
                     kind=f.get("kind", "capability"),
                     statement=f.get("statement", "").strip(),
                     value=_normalize_value(f.get("value")),
-                    provenance=_prov(c["path"], lines, c.get("commit_sha"), c.get("kind", "file"), c.get("page")),
+                    provenance=_prov(
+                        c["path"],
+                        lines,
+                        c.get("commit_sha"),
+                        c.get("kind", "file"),
+                        c.get("page"),
+                        c.get("forge"),
+                        c.get("repo_id"),
+                    ),
                     confidence=min(0.9, 0.4 + 0.1 * len(lines or [])),
                     status="inferred",
                 )

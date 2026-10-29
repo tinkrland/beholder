@@ -20,7 +20,7 @@ target input ──► lens (criteria, weights, trusted evidence, red flags)
 ## step by step
 
 1. **add the project.** connect a repo (github, gitlab, bitbucket, gitea; one or several), paste text, upload docs, or point at a doc site. nothing is required except something that describes the project.
-2. **review the model.** beholder lists the facts it found, each with evidence. confirm, reject, edit, or add facts. facts you add are labeled user-stated.
+2. **review the model.** beholder lists the facts it found, each with evidence. confirm, reject, edit, or add facts. facts you add are labeled user-stated. for a repo, evidence pins the exact commit it was read at, so a score can always be traced to the code that produced it.
 3. **choose targets.** upload a rubric or call for proposals, pick a preset (yc, emergent ventures), or paste a custom brief. for a rubric, the parse is a draft you can edit, and confirming it means the weights were shown to you: a draft lens never scores, and weights beholder proposed stay marked inferred even after you confirm them.
 4. **score.** for each target, every criterion gets a score, the reasoning, the facts supporting it, and what would raise it.
 5. **find gaps and overclaims.** gaps are criteria with no supporting facts, ranked by weight. if you pasted your own pitch, beholder checks each claim against the facts and rewrites the ones that overreach.

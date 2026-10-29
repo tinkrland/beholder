@@ -287,6 +287,19 @@ def test_structural_pass_is_observed_not_verified():
     assert facts[0].confidence < 0.7  # file evidence only claims so much
 
 
+def test_repo_evidence_pins_the_commit():
+    """a repo citation names the exact code that was read: forge, repo, and
+    commit travel with the fact, and tree-level evidence pins the commit too."""
+    facts = extraction.structural_pass(["src/api/routes.py"], commit_sha="sha123", forge="github", repo_id="main")
+    prov = facts[0].provenance[0]
+    assert prov.ref == "repo tree"
+    assert prov.commit_sha == "sha123"
+    assert prov.forge == "github"
+    assert prov.repo_id == "main"
+    # a project without a repo still extracts: no invented sha
+    assert extraction.structural_pass(["src/api/routes.py"])[0].provenance[0].commit_sha is None
+
+
 async def test_semantic_pass_provenance_comes_from_chunk():
     run = FakeRun({"extract_facts": {"facts": [{"kind": "capability", "statement": "the project renders deterministic geometry", "lines": [3, 12]}]}})
     facts = await extraction.semantic_pass([{"path": "readme.md", "text": "text", "lines_start": 1, "lines_end": 40, "commit_sha": "sha123"}], "p1", run)

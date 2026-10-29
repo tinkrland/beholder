@@ -283,7 +283,9 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
             "text": c.text,
             "lines_start": c.lines_start or 0,
             "lines_end": c.lines_end or 0,
-            "commit_sha": None,
+            "commit_sha": source.commit_sha,
+            "forge": source.forge,
+            "repo_id": source.ref if source.kind == "repo" else None,
             "kind": c.kind or "file",
             "page": c.page,
         }
@@ -291,7 +293,15 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
     ]
     static = brain.extraction.static_pass(chunk_dicts)
     paths = sorted({c["path"] for c in chunk_dicts if c["path"]})
-    structural = brain.extraction.structural_pass(paths)
+    repo_sources = [s for s in (await session.execute(select(Source).where(Source.project_id == project_id, Source.kind == "repo"))).scalars()]
+    repo_sources.sort(key=lambda r: r.created_at, reverse=True)
+    tree_source = repo_sources[0] if repo_sources else None
+    structural = brain.extraction.structural_pass(
+        paths,
+        commit_sha=tree_source.commit_sha if tree_source else None,
+        forge=tree_source.forge if tree_source else None,
+        repo_id=tree_source.ref if tree_source else None,
+    )
 
     existing = (await session.execute(select(Fact).where(Fact.project_id == project_id))).scalars().all()
     confirmed_hashes = {f.content_hash for f in existing if f.status == "confirmed"}

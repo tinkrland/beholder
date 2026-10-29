@@ -44,7 +44,7 @@ rules the code keeps:
 - repo re-sync: POST /sources/{id}/resync re-walks a repo source, inserts a new source row (history is insert-only, old facts keep their provenance), and stores what changed in meta.change_summary (files added, removed, changed)
 - model versioning: every extraction snapshots an immutable model version with a parent chain; GET /projects/{id}/model-versions/diff names what changed between two extractions (facts by content hash, review actions as status changes, sources by hash)
 - fact editor over http: POST /projects/{id}/facts (user-stated, confirmed by authorship), PUT /facts/{id} (edit), POST /facts/{id}/review (confirm or reject); any fact change flags the project's views stale, rejected facts never feed the model
-- provenance comes from the chunk, never from the model
+- provenance comes from the chunk, never from the model: repo facts cite forge, ref, and the source's commit sha, tree-level facts included, so evidence names the code that was read
 - the nine w's (thewframework/) are the extraction map: grounding reports
   grounded, partial, or silent per dimension, and silence is surfaced, never
   smoothed over

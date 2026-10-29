@@ -13,7 +13,7 @@ tags: **mvp** = in the first release, **later** = planned, **out** = never.
 
 ## project model
 
-- facts extracted with provenance (file and lines, document and page, or user-stated) **mvp**
+- facts extracted with provenance (file and lines, document and page, or user-stated) **mvp**: repo evidence pins the commit, forge, and ref it was read at, so a score traces back to the code that produced it
 - confidence score per fact **mvp**
 - fact editor: confirm, reject, edit, add **mvp**
 - user-stated facts labeled as such and lower-trust by default **mvp**
