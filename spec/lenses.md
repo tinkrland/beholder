@@ -102,9 +102,19 @@ each sponsor track is its own lens. beholder shows a comparison of which track t
 - presets older than their staleness threshold show a warning and are never presented as current
 - presets describe what a target has said it values; they do not claim to predict decisions
 
-## the shared library (later)
+## the shared library
 
 public rubrics a user uploads can be contributed to the shared library with opt-in. confidential or private materials are never contributed. contributed lenses are reviewed before they become presets.
+
+the rules the code enforces, not just states:
+
+- contribution needs an explicit assertion that the rubric is public. no assertion, no contribution, and the api says why
+- only a confirmed lens can be contributed: an unconfirmed parse is the model's reading, not the user's
+- only uploaded rubrics. custom lenses are the user's own framing and stay private
+- submitting does not publish. a submitted lens is visible to reviewers only, and the shelf never shows it
+- the reviewer is a deployment role, an email allowlist in configuration. no reviewers configured means nothing is approved, and the api says so instead of pretending a review happened
+- a contributor never reviews their own contribution, even if they are on the allowlist
+- approval is what makes a lens shared. the shelf shows the sources and the last-verified date, so a reader can judge the lens before trusting it
 
 ## worked example: a real rubric, parsed end to end
 

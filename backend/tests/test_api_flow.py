@@ -279,6 +279,57 @@ async def test_mvp_flow(client):
     assert versions[0]["id"] in diff["to_version"]
 
 
+async def test_library_contribution_flow(client, monkeypatch):
+    """a rubric lens, reviewed and confirmed, can be contributed with an
+    explicit public assertion; it waits for a reviewer; approval puts it on
+    the shared shelf; a contributor can never approve their own lens."""
+    from app.config import settings
+
+    r = await client.post("/api/projects", json={"name": "contrib"})
+    project_id = r.json()["id"]
+    r = await client.post("/api/lenses/parse-rubric", json={"text": "criteria: depth 50%, clarity 50%.", "source_ref": "public rubric"})
+    lens = r.json()
+    # confirmation echoes the parse: a draft never becomes a contribution
+    weights = [{"name": c["name"], "weight": c["weight"]} for c in lens["criteria"]]
+    r = await client.post(f"/api/lenses/{lens['id']}/contribute", json={"public_ack": True})
+    assert r.status_code == 409  # draft parse is not the user's reading
+    await client.post(f"/api/lenses/{lens['id']}/confirm", json={"confirmed_criteria": weights})
+
+    r = await client.post(f"/api/lenses/{lens['id']}/contribute", json={"public_ack": False})
+    assert r.status_code == 409  # no assertion, no contribution
+    r = await client.post(f"/api/lenses/{lens['id']}/contribute", json={"public_ack": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["library_status"] == "submitted"
+    shelf = (await client.get("/api/library")).json()
+    assert all(item["id"] != lens["id"] for item in shelf)  # submitted is not public
+
+    # no reviewers configured: nothing gets approved, and the api says why
+    monkeypatch.setattr(settings, "library_reviewers", "")
+    r = await client.post(f"/api/lenses/{lens['id']}/library-review", json={"decision": "approve"})
+    assert r.status_code == 409
+    assert "library reviewers" in r.json()["detail"]
+
+    # the same identity spelled two ways is one user, never a collision: a
+    # contributor cannot launder a self-review through a dev token.
+    monkeypatch.setattr(settings, "library_reviewers", "dev@dev.local")
+    r = await client.post(
+        f"/api/lenses/{lens['id']}/library-review",
+        json={"decision": "approve"},
+        headers={"authorization": "bearer dev@dev.local"},
+    )
+    assert r.status_code == 403
+    assert "never reviews their own" in r.json()["detail"]
+
+    # the curator approves with a different identity: the lens joins the shelf
+    monkeypatch.setattr(settings, "library_reviewers", "curator@example.com")
+    hdr = {"authorization": "bearer curator@example.com"}
+    r = await client.post(f"/api/lenses/{lens['id']}/library-review", json={"decision": "approve"}, headers=hdr)
+    assert r.status_code == 200, r.text
+    assert r.json()["library_status"] == "approved"
+    shelf = (await client.get("/api/library")).json()
+    assert any(item["id"] == lens["id"] for item in shelf)
+
+
 async def test_projects_of_others_do_not_exist_to_you(client):
     r = await client.post("/api/projects", json={"name": "mine"})
     project_id = r.json()["id"]

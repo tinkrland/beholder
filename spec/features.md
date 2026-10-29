@@ -37,6 +37,7 @@ tags: **mvp** = in the first release, **later** = planned, **out** = never.
 - gap finder, ranked by criterion weight **mvp**
 - overclaim finder on the user's own pitch text, with defensible rewrites **mvp**
 - honesty guard: unsupported facts cannot be exported without user confirmation **mvp**
+- shared lens library: opt-in contribution of public rubrics, reviewed by the deployment before it becomes visible, approved lenses list with their sources **mvp**
 - consistency check across targets **later**
 
 ## the pitch view

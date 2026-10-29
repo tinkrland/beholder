@@ -35,8 +35,8 @@
 
 ## stage 5: library network effects
 
-- opt-in contribution of public rubrics to the shared library
-- reviewed community lenses
+- opt-in contribution of public rubrics to the shared library (done, oct 29 2026: POST /lenses/{id}/contribute requires a public assertion, a confirmed parse, and rubric type; submitting never publishes)
+- reviewed community lenses (done: a deployment reviewer allowlist gates approval, a contributor never reviews their own lens, GET /library lists approved lenses with sources and dates)
 - outcome reporting (advanced, funded) to calibrate lens quality
 
 ## deliberately not on the roadmap

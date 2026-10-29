@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # are prioritized before code; this caps cost, not coverage of them.
     semantic_chunks: int = 8
 
+    # who may review contributed lenses into the shared library: a comma
+    # separated email allowlist. empty means nobody: contributions wait, and
+    # the api says so instead of pretending a review happened.
+    library_reviewers: str = ""
+
     # dev only: skip jwt verification. never enable with a public bind.
     dev_auth: bool = False
 

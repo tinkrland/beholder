@@ -25,7 +25,11 @@ def verify_token(token: str) -> dict:
         # local mode: no signature to verify, the caller is whoever they say
         if token.count(".") == 2:
             return jwt.decode(token, options={"verify_signature": False})
-        return {"sub": token or "dev", "email": f"{token or 'dev'}@dev.local"}
+        # a dev token that already looks like an email keeps it: allowlists
+        # and reviewer checks compare on email, and mangling it would make
+        # the same identity unreachable in dev and prod alike.
+        email = token if "@" in token else f"{token or 'dev'}@dev.local"
+        return {"sub": token or "dev", "email": email}
     if not settings.supabase_url:
         raise HTTPException(status_code=501, detail="auth is not configured: set supabase_url or enable dev_auth locally")
     jwks = _fetch_jwks(settings.supabase_url)
@@ -49,9 +53,15 @@ async def get_current_user(request: Request, session: AsyncSession = Depends(get
     auth_id = claims.get("sub") or claims.get("email") or "dev"
     user = (await session.execute(select(User).where(User.auth_id == auth_id))).scalar_one_or_none()
     if user is None:
-        user = User(auth_id=auth_id, email=claims.get("email") or f"{auth_id}@dev.local")
-        session.add(user)
-        await session.commit()
+        email = claims.get("email") or f"{auth_id}@dev.local"
+        # the same identity can arrive spelled two ways (a dev token that is
+        # an email, and the bare name it was minted from). email is unique,
+        # so adopt the existing row instead of colliding on the constraint.
+        user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
+        if user is None:
+            user = User(auth_id=auth_id, email=email)
+            session.add(user)
+            await session.commit()
     return user
 
 

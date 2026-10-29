@@ -38,6 +38,7 @@ rules the code keeps:
 - model_version, score, pitch_view, export are immutable, insert-only
 - a draft lens never scores; confirmation echoes every criterion back (name and weight each) and the echo must match the lens: a review that never showed the numbers is not a review. drafts are editable via PUT /lenses/{id}; a weight the human changes stops being marked inferred
 - unbound sentences fail the render; export is blocked on honesty failures
+- the shared library: POST /lenses/{id}/contribute (public assertion, confirmed rubric parse, never publishes by submitting), POST /lenses/{id}/library-review (deployment reviewer allowlist; a contributor never reviews their own), GET /library (approved lenses with sources). no reviewers configured approves nothing
 - every project-scoped route checks membership before acting: targets, gaps, pitch, claims, exports, and jobs resolve their project and 404 for strangers, never 403
 - export formats: markdown, demo script, deck outline, partner one-pager. all four render the same guarded sentences rearranged; unknown formats are a 400
 - repo re-sync: POST /sources/{id}/resync re-walks a repo source, inserts a new source row (history is insert-only, old facts keep their provenance), and stores what changed in meta.change_summary (files added, removed, changed)
@@ -69,6 +70,10 @@ uvicorn app.main:app --reload
 
 then the mvp flow over http: create a project, add a text source, extract,
 parse a rubric, confirm the lens, score a target, pitch, export.
+
+the shared library needs a reviewer: set BEHOLDER_LIBRARY_REVIEWERS to a
+comma separated email allowlist. with none set, contributions wait and the
+api says so: nothing is approved by accident.
 
 ## migrations
 

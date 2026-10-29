@@ -374,6 +374,72 @@ async def get_grounding(
     return await grounding_for_project(session, project_id)
 
 
+class ContributeIn(BaseModel):
+    public_ack: bool = False
+
+
+class LibraryReviewIn(BaseModel):
+    decision: str  # approve | reject
+    note: str | None = None
+
+
+@router.post("/lenses/{lens_id}/contribute")
+async def post_contribute_lens(
+    lens_id: str,
+    body: ContributeIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """opt in to the shared library. requires an explicit assertion that the
+    rubric is public, a confirmed parse, and rubric type: confidential
+    material is never contributed, and custom lenses stay private."""
+    from ..service import contribute_lens
+
+    lens = await session.get(Lens, lens_id)
+    if lens is None:
+        raise HTTPException(404, "lens not found")
+    if lens.owner_id is not None and lens.owner_id != user.id:
+        raise HTTPException(403, "not your lens")
+    try:
+        lens = await contribute_lens(session, lens, body.public_ack)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return {"id": lens.id, "library_status": lens.library_status, "contributed_at": lens.contributed_at.isoformat() if lens.contributed_at else None}
+
+
+@router.post("/lenses/{lens_id}/library-review")
+async def post_library_review(
+    lens_id: str,
+    body: LibraryReviewIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """the human gate for contributions. reviewers come from the deployment's
+    allowlist; a contributor never reviews their own lens, and no reviewers
+    configured means nothing gets approved."""
+    from ..service import review_contributed_lens
+
+    lens = await session.get(Lens, lens_id)
+    if lens is None:
+        raise HTTPException(404, "lens not found")
+    try:
+        lens = await review_contributed_lens(session, lens, user, body.decision, body.note)
+    except ValueError as e:
+        msg = str(e)
+        forbidden = "not a library reviewer" in msg or "never reviews their own" in msg
+        raise HTTPException(403 if forbidden else 409, msg)
+    return {"id": lens.id, "library_status": lens.library_status, "visibility": lens.visibility}
+
+
+@router.get("/library")
+async def get_library(user=Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    """the shared shelf: approved contributions, with sources and dates so a
+    reader can judge the lens before trusting it."""
+    from ..service import list_library
+
+    return await list_library(session)
+
+
 @router.get("/projects/{project_id}/matching")
 async def get_matching(
     project_id: str,

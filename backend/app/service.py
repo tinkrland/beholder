@@ -3,7 +3,7 @@ routes call these; nothing else does."""
 
 import hashlib
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -624,6 +624,70 @@ async def confirm_lens_row(session: AsyncSession, lens: Lens, echoed: list[tuple
     lens.review_status = "confirmed"
     await session.commit()
     return lens
+
+
+async def contribute_lens(session: AsyncSession, lens: Lens, public_ack: bool) -> Lens:
+    """opt in to the shared library. only a rubric the user reviewed, only
+    with an explicit assertion that it is public material, never twice."""
+    if not public_ack:
+        raise ValueError("contributing needs an explicit statement that the rubric is public: confidential material is never contributed")
+    if lens.review_status != "confirmed":
+        raise ValueError("only a confirmed lens can be contributed: an unconfirmed parse is not the user's reading of the rubric")
+    if lens.type != "rubric":
+        raise ValueError("only uploaded rubrics can be contributed: custom lenses are the user's own framing")
+    if lens.library_status in ("submitted", "approved"):
+        raise ValueError(f"already {lens.library_status}")
+    lens.library_status = "submitted"
+    lens.contributed_at = datetime.now(timezone.utc)
+    await session.commit()
+    return lens
+
+
+def reviewer_emails() -> set[str]:
+    return {e.strip().lower() for e in settings.library_reviewers.split(",") if e.strip()}
+
+
+async def review_contributed_lens(session: AsyncSession, lens: Lens, reviewer, decision: str, note: str | None = None) -> Lens:
+    """the human gate. a contributor never reviews their own contribution,
+    and a deployment with no reviewers configured approves nothing."""
+    reviewers = reviewer_emails()
+    if not reviewers:
+        raise ValueError("no library reviewers configured: set BEHOLDER_LIBRARY_REVIEWERS")
+    email = (reviewer.email or "").lower()
+    if email not in reviewers:
+        raise ValueError("not a library reviewer")
+    if lens.owner_id is not None and lens.owner_id == reviewer.id:
+        raise ValueError("a contributor never reviews their own contribution")
+    if lens.library_status != "submitted":
+        raise ValueError("only a submitted lens can be reviewed")
+    if decision not in ("approve", "reject"):
+        raise ValueError("decision must be approve or reject")
+    lens.library_status = "approved" if decision == "approve" else "rejected"
+    lens.visibility = "shared" if decision == "approve" else "private"
+    await session.commit()
+    return lens
+
+
+async def list_library(session: AsyncSession) -> list[dict]:
+    """the public shelf: approved contributions plus authored presets, each
+    with its sources and last-verified date, so a reader can judge it."""
+    rows = (
+        await session.execute(
+            select(Lens).where(Lens.library_status == "approved", Lens.visibility == "shared").order_by(Lens.name)
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": r.id,
+            "name": r.name,
+            "type": r.type,
+            "criteria_count": len(r.criteria or []),
+            "sources": r.sources,
+            "last_verified": r.last_verified.isoformat() if r.last_verified else None,
+            "contributed_at": r.contributed_at.isoformat() if r.contributed_at else None,
+        }
+        for r in rows
+    ]
 
 
 async def create_target(session: AsyncSession, project_id: str, lens_id: str, label: str, deadline=None) -> Target:

@@ -142,6 +142,10 @@ class Lens(Base):
     # the mandatory review step: draft lenses never score. confirmed means a
     # human has confirmed or edited the parse, including every inferred weight.
     review_status: Mapped[str] = mapped_column(Text, default="draft")
+    # the shared library: None never contributed, submitted waits for a
+    # reviewer, approved is public, rejected stays private.
+    library_status: Mapped[str | None] = mapped_column(Text, default=None)
+    contributed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
