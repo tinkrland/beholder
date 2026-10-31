@@ -27,6 +27,7 @@ from .models import (
     Job,
     Lens,
     ModelVersion,
+    Outcome,
     PitchView,
     Project,
     ProjectMember,
@@ -888,6 +889,64 @@ async def check_claims_rows(session: AsyncSession, target: Target, pitch_text: s
         rows.append(row)
     await session.commit()
     return rows
+
+
+OUTCOMES = ("advanced", "funded", "rejected", "withdrawn")
+
+
+async def record_outcome(session: AsyncSession, target_id: str, outcome: str, note: str | None, user_id: str | None) -> Outcome:
+    """insert-only: a correction is a new row, so the history of what the user
+    believed at each point survives."""
+    if outcome not in OUTCOMES:
+        raise ValueError(f"outcome must be one of: {', '.join(OUTCOMES)}")
+    row = Outcome(target_id=target_id, outcome=outcome, note=note, recorded_by=user_id)
+    session.add(row)
+    await session.commit()
+    return row
+
+
+async def target_outcome(session: AsyncSession, target_id: str) -> dict:
+    rows = (
+        await session.execute(select(Outcome).where(Outcome.target_id == target_id).order_by(Outcome.created_at.desc()))
+    ).scalars().all()
+    if not rows:
+        return {"current": None, "history": []}
+    return {
+        "current": {"outcome": rows[0].outcome, "note": rows[0].note, "created_at": rows[0].created_at.isoformat()},
+        "history": [{"outcome": r.outcome, "note": r.note, "created_at": r.created_at.isoformat()} for r in rows],
+    }
+
+
+async def lens_calibration(session: AsyncSession, lens_id: str, min_sample: int = 3) -> dict:
+    """observed scores next to observed outcomes for every target this lens
+    scored that has a recorded outcome. the sample size is part of the answer."""
+    lens = await session.get(Lens, lens_id)
+    if lens is None:
+        raise ValueError("lens not found")
+    targets = (await session.execute(select(Target).where(Target.lens_id == lens_id))).scalars().all()
+    rows: list[dict] = []
+    for target in targets:
+        outcome = (
+            await session.execute(select(Outcome).where(Outcome.target_id == target.id).order_by(Outcome.created_at.desc()))
+        ).scalars().first()
+        if outcome is None:
+            continue
+        score = (
+            await session.execute(select(Score).where(Score.target_id == target.id).order_by(Score.created_at.desc()))
+        ).scalars().first()
+        if score is None:
+            continue
+        rows.append(
+            {
+                "outcome": outcome.outcome,
+                "weighted_total": score.weighted_total,
+                "per_criterion": [
+                    {"criterion": c.get("criterion", ""), "weight": c.get("weight", 0.0), "score": c.get("score", 0.0)}
+                    for c in (score.per_criterion or [])
+                ],
+            }
+        )
+    return brain.calibration.calibrate(lens_id, rows, min_sample=min_sample).model_dump()
 
 
 async def export_view_row(session: AsyncSession, view_id: str, format_id: str, confirmed_fact_ids: list[str]) -> Export:

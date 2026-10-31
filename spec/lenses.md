@@ -91,6 +91,19 @@ the review step matters: a wrong weight silently skews every score, so the revie
 
 for criteria like "originality" or "innovation," beholder shows a score range and the reasoning, not a point estimate, and says which evidence would move it.
 
+## calibration: does the lens work
+
+a lens is an argument about what a reader values. arguments can be wrong, so beholder keeps the evidence that they were:
+
+- every target can record what happened: advanced, funded, rejected, or withdrawn. insert-only, so a correction adds a row instead of rewriting history
+- calibration puts observed scores next to observed outcomes and shows the sample size
+- below three outcomes in each group it refuses to name a separating criterion, and says why. four outcomes are four outcomes
+- a withdrawal is not a verdict on the project: it never pads the rejected group
+- when no criterion separates the groups, that is the finding, and it is stated plainly
+- calibration is the lens owner's to read. a preset pooled across accounts is not something one user gets to see
+
+the rule is the same as everywhere else: show what happened, claim only what the sample supports.
+
 ## sponsor tracks
 
 each sponsor track is its own lens. beholder shows a comparison of which track the project fits best, based on scores.

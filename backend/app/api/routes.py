@@ -747,6 +747,71 @@ async def post_claims(
     ]
 
 
+class OutcomeIn(BaseModel):
+    outcome: str
+    note: str | None = None
+
+
+@router.post("/targets/{target_id}/outcome")
+async def post_outcome(
+    target_id: str,
+    body: OutcomeIn,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """what actually happened: advanced, funded, rejected, or withdrawn.
+    insert-only, so a correction adds a row instead of rewriting history."""
+    target = await session.get(Target, target_id)
+    if target is None:
+        raise HTTPException(404, "target not found")
+    await require_project_access(user, target.project_id, session)
+    from ..service import record_outcome
+
+    try:
+        row = await record_outcome(session, target_id, body.outcome, body.note, user.id)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return {"id": row.id, "target_id": row.target_id, "outcome": row.outcome, "created_at": row.created_at.isoformat()}
+
+
+@router.get("/targets/{target_id}/outcome")
+async def get_outcome(target_id: str, user=Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    target = await session.get(Target, target_id)
+    if target is None:
+        raise HTTPException(404, "target not found")
+    await require_project_access(user, target.project_id, session)
+    from ..service import target_outcome
+
+    return await target_outcome(session, target_id)
+
+
+@router.get("/lenses/{lens_id}/calibration")
+async def get_lens_calibration(
+    lens_id: str,
+    min_sample: int = 3,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """whether the lens is worth trusting: observed scores next to observed
+    outcomes, with the sample size in the answer and no prediction claimed.
+
+    owner only: calibration aggregates other people's outcomes, and a preset
+    pooled across accounts is not a thing one user gets to read."""
+    from ..service import lens_calibration
+
+    lens = await session.get(Lens, lens_id)
+    if lens is None:
+        raise HTTPException(404, "lens not found")
+    if lens.owner_id is None:
+        raise HTTPException(409, "authored presets are not calibrated per user: calibration pools outcomes, and those outcomes belong to other accounts")
+    if lens.owner_id != user.id:
+        raise HTTPException(404, "lens not found")
+    try:
+        return await lens_calibration(session, lens_id, min_sample=min_sample)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
 @router.post("/views/{view_id}/export")
 async def post_export(
     view_id: str,

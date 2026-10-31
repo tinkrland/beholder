@@ -215,6 +215,21 @@ class PitchView(Base):
     __table_args__ = (Index("ix_view_target_model", "target_id", "model_version_id"),)
 
 
+class Outcome(Base):
+    """what actually happened to a target. insert-only history: the latest row
+    is the current outcome, and a correction is a new row, never an edit."""
+
+    __tablename__ = "outcomes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    target_id: Mapped[str] = mapped_column(ForeignKey("targets.id"))
+    outcome: Mapped[str] = mapped_column(Text)  # advanced | funded | rejected | withdrawn
+    note: Mapped[str | None] = mapped_column(Text, default=None)
+    recorded_by: Mapped[str | None] = mapped_column(String(36), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (Index("ix_outcome_target", "target_id", "created_at"),)
+
+
 class Export(Base):
     """immutable. export is blocked on honesty failures, so this only exists
     after the guard passes or the user confirmed every flagged fact."""

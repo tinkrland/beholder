@@ -37,7 +37,7 @@
 
 - opt-in contribution of public rubrics to the shared library (done, oct 29 2026: POST /lenses/{id}/contribute requires a public assertion, a confirmed parse, and rubric type; submitting never publishes)
 - reviewed community lenses (done: a deployment reviewer allowlist gates approval, a contributor never reviews their own lens, GET /library lists approved lenses with sources and dates)
-- outcome reporting (advanced, funded) to calibrate lens quality
+- outcome reporting (advanced, funded) to calibrate lens quality (done, oct 31 2026: POST /targets/{id}/outcome is insert-only history, GET /lenses/{id}/calibration reports observed scores next to observed outcomes with the sample size in the answer and no prediction claimed; below three per group it refuses to say anything about the lens)
 
 ## deliberately not on the roadmap
 

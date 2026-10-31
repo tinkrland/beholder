@@ -330,6 +330,55 @@ async def test_library_contribution_flow(client, monkeypatch):
     assert any(item["id"] == lens["id"] for item in shelf)
 
 
+async def test_outcomes_and_lens_calibration(client):
+    """what happened to a target is recorded, insert-only, and calibration
+    reports it with the sample size in view. it never claims prediction."""
+    r = await client.post("/api/projects", json={"name": "outcomes"})
+    project_id = r.json()["id"]
+    await client.post(f"/api/projects/{project_id}/sources/text", json={"text": "a tool that scores projects against rubrics."})
+    await client.post(f"/api/projects/{project_id}/extract")
+    r = await client.post("/api/lenses/parse-rubric", json={"text": "criteria: depth 60%, clarity 40%.", "source_ref": "public"})
+    lens = r.json()
+    weights = [{"name": c["name"], "weight": c["weight"]} for c in lens["criteria"]]
+    await client.post(f"/api/lenses/{lens['id']}/confirm", json={"confirmed_criteria": weights})
+    r = await client.post(
+        f"/api/projects/{project_id}/targets",
+        json={"lens_id": lens["id"], "label": "hackathon"},
+    )
+    assert r.status_code == 200, r.text
+    target_id = r.json()["id"]
+    await client.post(f"/api/targets/{target_id}/score")
+
+    # no outcome yet: the api says nothing happened, it does not guess
+    r = await client.get(f"/api/targets/{target_id}/outcome")
+    assert r.json() == {"current": None, "history": []}
+
+    r = await client.post(f"/api/targets/{target_id}/outcome", json={"outcome": "maybe", "note": "x"})
+    assert r.status_code == 422
+    r = await client.post(f"/api/targets/{target_id}/outcome", json={"outcome": "advanced", "note": "second round"})
+    assert r.status_code == 200, r.text
+    r = await client.post(f"/api/targets/{target_id}/outcome", json={"outcome": "rejected", "note": "corrected after finals"})
+    assert r.status_code == 200, r.text
+    # insert-only: the correction is the current outcome, the history keeps both
+    r = await client.get(f"/api/targets/{target_id}/outcome")
+    body = r.json()
+    assert body["current"]["outcome"] == "rejected"
+    assert [h["outcome"] for h in body["history"]] == ["rejected", "advanced"]
+
+    # calibration: one recorded outcome is too few, and it says exactly that
+    r = await client.get(f"/api/lenses/{lens['id']}/calibration")
+    assert r.status_code == 200, r.text
+    cal = r.json()
+    assert cal["recorded"] == 1
+    assert "too few to say anything" in cal["reading"]
+    assert cal["criterion_gaps"] == []
+
+    # a stranger can neither record an outcome nor read calibration
+    hdr = {"authorization": "bearer someone-else"}
+    r = await client.post(f"/api/targets/{target_id}/outcome", json={"outcome": "funded"}, headers=hdr)
+    assert r.status_code == 404
+
+
 async def test_projects_of_others_do_not_exist_to_you(client):
     r = await client.post("/api/projects", json={"name": "mine"})
     project_id = r.json()["id"]
