@@ -55,6 +55,15 @@ def render_partner_one_pager(view: PitchViewOut, label: str) -> str:
     return head + "\n\n" + "\n\n".join(blocks)
 
 
+def prebuild_notice() -> str:
+    """a pre-build project has specs, not shipped code. an export that did not
+    say so would be the most expensive kind of wrong."""
+    return (
+        "> pre-build: this project exists as specs so far. every statement below is a claim from "
+        "those documents, not something observed in shipped code."
+    )
+
+
 def render(view: PitchViewOut, format_id: str, label: str = "") -> str:
     if format_id == "markdown":
         return render_markdown(view)

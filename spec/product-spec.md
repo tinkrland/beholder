@@ -17,7 +17,7 @@ later, it also recommends **which targets to pitch at all**.
 
 the name comes from "beauty is in the eye of the beholder."
 
-**who it is for:** anyone pitching one project to several audiences: hackathon builders, early founders, grant applicants, solo creators. v1 is for projects with code, full or half written; pre-build projects with just specs are the v2 horizon.
+**who it is for:** anyone pitching one project to several audiences: hackathon builders, early founders, grant applicants, solo creators. v1 is for projects with code, full or half written. pre-build projects with just specs are supported through pre-build mode, where every fact is labeled a claim and exports say so.
 
 **how it runs:** a hosted service, self-hostable. the source is available; open-sourcing depends.
 

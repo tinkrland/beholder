@@ -38,6 +38,7 @@ tags: **mvp** = in the first release, **later** = planned, **out** = never.
 - overclaim finder on the user's own pitch text, with defensible rewrites **mvp**
 - honesty guard: unsupported facts cannot be exported without user confirmation **mvp**
 - shared lens library: opt-in contribution of public rubrics, reviewed by the deployment before it becomes visible, approved lenses list with their sources **mvp**
+- pre-build mode: projects that exist only as specs (mode prebuild) **mvp**: no structural pass, every fact labeled claimed, exports carry the pre-build notice
 - outcome reporting: what happened to a target (advanced, funded, rejected, withdrawn) recorded as insert-only history **mvp**
 - lens calibration: observed scores next to observed outcomes, per criterion, gated at three per group and never presented as prediction **mvp**
 - consistency check across targets **later**

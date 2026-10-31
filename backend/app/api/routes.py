@@ -46,6 +46,7 @@ def runner(session: AsyncSession) -> SimpleRunner:
 
 class ProjectIn(BaseModel):
     name: str
+    mode: str = "build"  # build | prebuild (specs only, every fact a claim)
 
 
 class TextSourceIn(BaseModel):
@@ -131,8 +132,11 @@ class ExportIn(BaseModel):
 
 @router.post("/projects")
 async def post_project(body: ProjectIn, user=Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    project = await create_project(session, user, body.name)
-    return {"id": project.id, "name": project.name}
+    try:
+        project = await create_project(session, user, body.name, mode=body.mode)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return {"id": project.id, "name": project.name, "mode": project.mode}
 
 
 @router.get("/projects")
@@ -142,7 +146,18 @@ async def get_projects(user=Depends(get_current_user), session: AsyncSession = D
     rows = (
         await session.execute(select(ProjectMember).where(ProjectMember.user_id == user.id))
     ).scalars().all()
-    return [{"project_id": r.project_id, "role": r.role} for r in rows]
+    projects = {
+        p.id: p for p in (await session.execute(select(Project).where(Project.id.in_([r.project_id for r in rows])))).scalars()
+    } if rows else {}
+    return [
+        {
+            "project_id": r.project_id,
+            "role": r.role,
+            "name": projects[r.project_id].name if r.project_id in projects else None,
+            "mode": projects[r.project_id].mode if r.project_id in projects else None,
+        }
+        for r in rows
+    ]
 
 
 @router.post("/projects/{project_id}/sources/text")
@@ -475,7 +490,15 @@ async def get_facts(
     await require_project_access(user, project_id, session)
     facts = await list_facts(session, project_id)
     return [
-        {"id": f.id, "kind": f.kind, "statement": f.statement, "confidence": f.confidence, "status": f.status, "provenance": f.provenance}
+        {
+            "id": f.id,
+            "kind": f.kind,
+            "statement": f.statement,
+            "confidence": f.confidence,
+            "status": f.status,
+            "basis": getattr(f, "basis", "observed"),
+            "provenance": f.provenance,
+        }
         for f in facts
     ]
 

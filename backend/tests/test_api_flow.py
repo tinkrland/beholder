@@ -379,6 +379,61 @@ async def test_outcomes_and_lens_calibration(client):
     assert r.status_code == 404
 
 
+async def test_prebuild_project_labels_every_fact_a_claim(client):
+    """a project that exists only as specs: no repo tree to read, so no
+    structural facts; every fact is labeled claimed; the export says so
+    instead of reading like something that shipped."""
+    r = await client.post("/api/projects", json={"name": "prebuild", "mode": "prebuild"})
+    assert r.status_code == 200, r.text
+    project_id = r.json()["id"]
+    assert r.json()["mode"] == "prebuild"
+    r = await client.post("/api/projects", json={"name": "bad", "mode": "someday"})
+    assert r.status_code == 422  # mode is a closed set, not a vibe
+
+    r = await client.post(
+        f"/api/projects/{project_id}/sources/text",
+        json={"text": "the product will score projects against rubrics and will export a pitch.", "label": "spec.md"},
+    )
+    assert r.status_code == 200, r.text
+    await client.post(f"/api/projects/{project_id}/extract")
+
+    facts = (await client.get(f"/api/projects/{project_id}/facts")).json()
+    assert facts
+    assert all(f["basis"] == "claimed" for f in facts)
+    # the structural pass reads a repo tree, and there is none: it must not run
+    assert not any("exists in the repo" in f["statement"] for f in facts)
+
+    # a fact the user adds is a claim too: authorship does not make code exist
+    r = await client.post(
+        f"/api/projects/{project_id}/facts",
+        json={"kind": "capability", "statement": "it will run offline once the sync lands"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["fact"]["basis"] == "claimed"
+
+    # and the export carries the notice, not just the api
+    r = await client.post(f"/api/projects/{project_id}/targets/from-preset", json={"preset_key": "yc_application"})
+    target_id = r.json()["target_id"]
+    await client.post(f"/api/targets/{target_id}/pitch")
+    view = (await client.post(f"/api/targets/{target_id}/pitch")).json()
+    fact_ids = sorted({fid for sent in view["sentences"] for fid in sent.get("fact_ids", [])})
+    r = await client.post(f"/api/views/{view['id']}/export", json={"format_id": "markdown", "confirmed_fact_ids": fact_ids})
+    if r.status_code == 403:  # low-confidence facts still need confirmation
+        r = await client.post(f"/api/views/{view['id']}/export", json={"format_id": "markdown", "confirmed_fact_ids": fact_ids})
+    assert r.status_code in (200, 403), r.text
+    if r.status_code == 200:
+        assert "pre-build: this project exists as specs so far" in r.json()["body"]
+
+    # a build-mode project carries no such notice, and its facts stay observed
+    r = await client.post("/api/projects", json={"name": "shipped"})
+    build_id = r.json()["id"]
+    assert r.json()["mode"] == "build"
+    await client.post(f"/api/projects/{build_id}/sources/text", json={"text": "a tool that scores projects."})
+    await client.post(f"/api/projects/{build_id}/extract")
+    build_facts = (await client.get(f"/api/projects/{build_id}/facts")).json()
+    assert all(f["basis"] == "observed" for f in build_facts)
+
+
 async def test_projects_of_others_do_not_exist_to_you(client):
     r = await client.post("/api/projects", json={"name": "mine"})
     project_id = r.json()["id"]

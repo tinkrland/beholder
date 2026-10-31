@@ -150,15 +150,25 @@ def structural_pass(
     return facts
 
 
-async def semantic_pass(chunks: list[dict], project_id: str, run: Runner, max_chunks: int = 8) -> list[FactIn]:
+async def semantic_pass(
+    chunks: list[dict], project_id: str, run: Runner, max_chunks: int = 8, prebuild: bool = False
+) -> list[FactIn]:
     """the gateway reads selected chunks and proposes facts. the model returns
     {facts: [{kind, statement, lines}]} and provenance comes from the chunk, not
-    from the model: the model cannot mint provenance."""
+    from the model: the model cannot mint provenance. prebuild says the text is
+    a spec, so planned capabilities are read as intent, not as shipped work."""
     facts: list[FactIn] = []
     for c in chunks[:max_chunks]:
         out = await run(
             "extract_facts",
-            {"ref": c["path"], "lines_start": c.get("lines_start", 0), "lines_end": c.get("lines_end", 0), "page": c.get("page"), "text": c["text"]},
+            {
+                "ref": c["path"],
+                "lines_start": c.get("lines_start", 0),
+                "lines_end": c.get("lines_end", 0),
+                "page": c.get("page"),
+                "text": c["text"],
+                "prebuild": prebuild,
+            },
         )
         for f in out.get("facts", []):
             lines = f.get("lines") or [c.get("lines_start", 0), c.get("lines_end", 0)]

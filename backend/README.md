@@ -38,6 +38,7 @@ rules the code keeps:
 - model_version, score, pitch_view, export are immutable, insert-only
 - a draft lens never scores; confirmation echoes every criterion back (name and weight each) and the echo must match the lens: a review that never showed the numbers is not a review. drafts are editable via PUT /lenses/{id}; a weight the human changes stops being marked inferred
 - unbound sentences fail the render; export is blocked on honesty failures
+- pre-build mode: POST /projects with mode=prebuild. no structural pass, every fact stored with basis=claimed (user facts too), exports open with a pre-build notice. facts carry basis observed|claimed
 - outcomes: POST /targets/{id}/outcome (advanced, funded, rejected, withdrawn), insert-only history; GET /lenses/{id}/calibration puts observed scores next to observed outcomes with sample size stated, gated at three per group, owner only (presets pool other accounts and are refused)
 - the shared library: POST /lenses/{id}/contribute (public assertion, confirmed rubric parse, never publishes by submitting), POST /lenses/{id}/library-review (deployment reviewer allowlist; a contributor never reviews their own), GET /library (approved lenses with sources). no reviewers configured approves nothing
 - every project-scoped route checks membership before acting: targets, gaps, pitch, claims, exports, and jobs resolve their project and 404 for strangers, never 403

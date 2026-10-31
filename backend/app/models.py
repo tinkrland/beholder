@@ -43,6 +43,9 @@ class Project(Base):
     __tablename__ = "projects"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     name: Mapped[str] = mapped_column(Text)
+    # build: the project exists as code, so evidence can be observed.
+    # prebuild: just specs, so every fact is a claim until something ships.
+    mode: Mapped[str] = mapped_column(Text, default="build")
     settings: Mapped[dict] = mapped_column(json_type(), default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -98,6 +101,9 @@ class Fact(Base):
     provenance: Mapped[list] = mapped_column(json_type(), default=list)
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
     status: Mapped[str] = mapped_column(Text, default="inferred")  # inferred | confirmed | rejected
+    # observed: read from something that exists. claimed: read from a spec
+    # that describes something not built yet. the difference is not cosmetic.
+    basis: Mapped[str] = mapped_column(Text, default="observed")  # observed | claimed
     content_hash: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

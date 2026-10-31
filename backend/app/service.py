@@ -55,12 +55,18 @@ def fact_out(row: Fact) -> FactOut:
         provenance=[Provenance(**p) for p in row.provenance],
         confidence=row.confidence,
         status=row.status,
+        basis=getattr(row, "basis", "observed"),
         content_hash=row.content_hash,
     )
 
 
-async def create_project(session: AsyncSession, user, name: str) -> Project:
-    project = Project(name=name)
+PROJECT_MODES = ("build", "prebuild")
+
+
+async def create_project(session: AsyncSession, user, name: str, mode: str = "build") -> Project:
+    if mode not in PROJECT_MODES:
+        raise ValueError(f"mode must be one of: {', '.join(PROJECT_MODES)}")
+    project = Project(name=name, mode=mode)
     session.add(project)
     await session.flush()
     session.add(ProjectMember(project_id=project.id, user_id=user.id, role="owner"))
@@ -292,24 +298,30 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
         }
         for c, source in chunks
     ]
+    project_row = await session.get(Project, project_id)
+    prebuild = (project_row.mode if project_row else "build") == "prebuild"
     static = brain.extraction.static_pass(chunk_dicts)
     paths = sorted({c["path"] for c in chunk_dicts if c["path"]})
-    repo_sources = [s for s in (await session.execute(select(Source).where(Source.project_id == project_id, Source.kind == "repo"))).scalars()]
-    repo_sources.sort(key=lambda r: r.created_at, reverse=True)
-    tree_source = repo_sources[0] if repo_sources else None
-    structural = brain.extraction.structural_pass(
-        paths,
-        commit_sha=tree_source.commit_sha if tree_source else None,
-        forge=tree_source.forge if tree_source else None,
-        repo_id=tree_source.ref if tree_source else None,
-    )
+    # pre-build projects have no tree to read: the structural pass would be
+    # inventing shape from documents, so it does not run at all.
+    structural: list = []
+    if not prebuild:
+        repo_sources = [s for s in (await session.execute(select(Source).where(Source.project_id == project_id, Source.kind == "repo"))).scalars()]
+        repo_sources.sort(key=lambda r: r.created_at, reverse=True)
+        tree_source = repo_sources[0] if repo_sources else None
+        structural = brain.extraction.structural_pass(
+            paths,
+            commit_sha=tree_source.commit_sha if tree_source else None,
+            forge=tree_source.forge if tree_source else None,
+            repo_id=tree_source.ref if tree_source else None,
+        )
 
     existing = (await session.execute(select(Fact).where(Fact.project_id == project_id))).scalars().all()
     confirmed_hashes = {f.content_hash for f in existing if f.status == "confirmed"}
     rejected_hashes = {f.content_hash for f in existing if f.status == "rejected"}
 
     semantic = await brain.extraction.semantic_pass(
-        brain.extraction.select_semantic_chunks(chunk_dicts, settings.semantic_chunks), project_id, run
+        brain.extraction.select_semantic_chunks(chunk_dicts, settings.semantic_chunks), project_id, run, prebuild=prebuild
     )
 
     stored: list[Fact] = []
@@ -327,6 +339,8 @@ async def extract_facts(session: AsyncSession, project_id: str, run) -> list[Fac
             provenance=[p.model_dump() for p in f.provenance],
             confidence=f.confidence,
             status=status,
+            # a spec says what will be, so its facts are claims until code exists
+            basis="claimed" if prebuild else "observed",
             content_hash=h,
         )
         session.add(row)
@@ -738,6 +752,7 @@ async def mark_views_stale(session: AsyncSession, project_id: str) -> int:
 async def add_user_fact(session: AsyncSession, project_id: str, body) -> tuple[Fact, int]:
     """facts the user adds are user-stated and confirmed by authorship, same
     as an authored preset: no parse, no review step, provenance is the user."""
+    project_row = await session.get(Project, project_id)
     row = Fact(
         project_id=project_id,
         kind=body.kind,
@@ -746,6 +761,7 @@ async def add_user_fact(session: AsyncSession, project_id: str, body) -> tuple[F
         provenance=[{"type": "user", "ref": "user", "lines": None, "page": None, "commit_sha": None, "forge": None, "repo_id": None}],
         confidence=body.confidence,
         status="confirmed",
+        basis="claimed" if (project_row and project_row.mode == "prebuild") else "observed",
         content_hash=_content_hash(body.statement.strip(), [Provenance(type="user", ref="user")]),
     )
     session.add(row)
@@ -971,6 +987,9 @@ async def export_view_row(session: AsyncSession, view_id: str, format_id: str, c
         raise PermissionError("export blocked: " + "; ".join(report.blocking))
     label = target.label if target else ""
     body = brain.formats.render(view, format_id, label=label)
+    project_row = await session.get(Project, target.project_id) if target else None
+    if project_row is not None and project_row.mode == "prebuild":
+        body = brain.formats.prebuild_notice() + "\n\n" + body
     row = Export(view_id=view_id, format_id=format_id, body=body, confirmed_unsupported=confirmed_fact_ids)
     session.add(row)
     await session.commit()

@@ -43,6 +43,9 @@ class FactIn(BaseModel):
     provenance: list[Provenance]
     confidence: float = 0.5
     status: FactStatus = "inferred"
+    # observed: read from something that exists. claimed: read from a spec
+    # describing something not built yet.
+    basis: str = "observed"
 
 
 class FactOut(FactIn):

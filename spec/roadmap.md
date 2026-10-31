@@ -39,6 +39,10 @@
 - reviewed community lenses (done: a deployment reviewer allowlist gates approval, a contributor never reviews their own lens, GET /library lists approved lenses with sources and dates)
 - outcome reporting (advanced, funded) to calibrate lens quality (done, oct 31 2026: POST /targets/{id}/outcome is insert-only history, GET /lenses/{id}/calibration reports observed scores next to observed outcomes with the sample size in the answer and no prediction claimed; below three per group it refuses to say anything about the lens)
 
+## v2: pre-build projects
+
+- pre-build mode for projects that exist only as specs (done, oct 31 2026: project mode build|prebuild, structural pass gone in prebuild, every fact labeled claimed, exports open with a pre-build notice)
+
 ## deliberately not on the roadmap
 
 marketing features of any kind, integrations that turn beholder into a publishing tool, and guarantees of outcomes.

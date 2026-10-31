@@ -115,7 +115,7 @@ keep the job rows anyway: a job table is how users see progress, how failures re
 5. presets: authored lenses plus the refresh job
 6. consistency check across views
 7. matching and discovery
-8. v2 horizon: pre-build mode, projects that exist only as specs. the same pipeline with the semantic pass first and the structural pass gone; a lens parse of the user's own spec docs becomes the seed project model
+8. pre-build mode: projects that exist only as specs. implemented oct 31 2026. a project carries a mode, build or prebuild. in prebuild the structural pass does not run at all (there is no tree to read, and inventing one would be a lie), the semantic pass reads the spec documents with the model told this is a spec, and every fact is stored with basis claimed instead of observed, user-added facts included: authorship does not make code exist. exports open with a notice saying so. the rest of the pipeline is unchanged on purpose: a lens scores claims as claims, and the honesty guard still gates the export
 
 each stage uses the same gateway and the same tables. nothing is thrown away.
 
