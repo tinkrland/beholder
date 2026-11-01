@@ -30,8 +30,8 @@
 
 - rank the scored targets by fit (done, oct 20 2026: GET /projects/{id}/matching, fit comes only from scores on the table)
 - suggest library presets by readiness (done: criteria x grounding, silence named, no invented fit)
-- discovery of newly opened calls that fit (open)
-- requires a maintained database of calls, deadlines, and eligibility (open)
+- discovery of newly opened calls that fit (open: source research done, see [calls-discovery.md](calls-discovery.md))
+- requires a maintained database of calls, deadlines, and eligibility (open: grants.gov supplies dates and eligibility keyless; hackathons and partner tracks have no feed and stay curated)
 
 ## stage 5: library network effects
 

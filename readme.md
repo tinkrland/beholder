@@ -46,6 +46,7 @@ what runs today, end to end:
 | [build-spec.md](spec/build-spec.md) | the technical spec for builders |
 | [backend-stack.md](spec/backend-stack.md) | the backend stack: where each piece runs, and with which tools |
 | [roadmap.md](spec/roadmap.md) | staged plan |
+| [calls-discovery.md](spec/calls-discovery.md) | what open grant indexes actually return, and which one stage 4 can depend on |
 | [privacy.md](docs/privacy.md) | what is stored, shared, and never used |
 | [faq.md](docs/faq.md) | common questions and edge cases |
 | [glossary.md](docs/glossary.md) | terms |
