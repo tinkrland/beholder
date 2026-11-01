@@ -13,11 +13,23 @@ the project stays the same. the eye looking at it changes.
 - a **gap list** ranked by criterion weight
 - **overclaim fixes**: statements that go beyond your evidence, with defensible rewrites
 
-later: a recommendation of **which targets to pitch at**.
+which targets to pitch at, from the scores already on the table.
+
+and once something happens: **what actually happened**, recorded so a lens can be checked against outcomes instead of assumed good.
 
 ## status
 
-spec set complete. the nine w's framework, beholder's extraction map, lives in [thewframework/](thewframework/readme.md). the v1 backend lives in [backend/](backend/README.md): fastapi, any postgres, one model gateway, the brain as pure functions, rest-walk repo ingest, migrations from day one, 42 tests green. the mvp flow runs: project, sources, extraction, lens parse with mandatory review, scoring with gaps, pitch views with sentence binding, overclaim checks, and the honesty guard blocking export.
+spec set complete and the whole mvp is built behind an api. the nine w's framework, beholder's extraction map, lives in [thewframework/](thewframework/readme.md). the backend lives in [backend/](backend/README.md): fastapi, any postgres, one model gateway, the brain as pure functions, rest-walk repo ingest that pins every citation to a commit, migrations from day one, 161 tests green, no network in the suite.
+
+what runs today, end to end:
+
+- **projects and evidence**: pasted text, documents, doc sites, and repos over the rest api of github, gitlab, bitbucket, or gitea. every fact cites file and lines, document and page, or the user who stated it. repo citations name the commit they were read at, and a re-sync reports what changed since the last walk
+- **the lens**: a rubric parsed into criteria and weights, with a mandatory review step. authored presets for hackathons, grants, yc, and partner tracks, each with its last-verified date
+- **scoring and pitch**, with gaps ranked by weight, sentence-bound views, overclaim checks, and the honesty guard that blocks an export resting on unsupported facts
+- **exports**: markdown, demo script, deck outline, partner one-pager. the same guarded sentences rearranged for a different reader, never rewritten
+- **the shared library**: a public rubric can be contributed with an explicit public assertion, reviewed by the deployment, and only then becomes visible with its sources
+- **outcomes and calibration**: what happened to a target is recorded as history, and a lens can be checked against those outcomes. below three per group it says too few to say anything, which is the honest answer
+- **pre-build mode**: a project that exists only as specs. no structural pass, every fact labeled a claim, exports that say so
 
 ## read in this order
 

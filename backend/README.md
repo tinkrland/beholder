@@ -29,7 +29,7 @@ app/
   api/routes.py      thin routes: validate, call the service
   jobs.py            one queue, one worker type, job rows as progress
 alembic/             migrations from day one
-tests/               42 tests, no network, every model call canned
+tests/               161 tests, no network, every model call canned
 ```
 
 rules the code keeps:
